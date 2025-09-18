@@ -191,3 +191,70 @@ elif st.session_state.stage == "show_masters":
         st.session_state.stage = "show_lineages"
         if 'masters' in st.session_state: del st.session_state['masters']
         st.rerun()
+
+elif st.session_state.stage == "show_teachings":
+    st.subheader(f"Teachings of {st.session_state.chosen_master}")
+    st.caption(f"On **{st.session_state.vritti.capitalize()}** from the **{st.session_state.chosen_lineage}** perspective.")
+    
+    if 'teachings' not in st.session_state:
+        with st.spinner("Distilling the wisdom..."):
+            prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with the markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts'."
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            
+            # Store the raw response for debugging before trying to parse
+            st.session_state.raw_response = response_text
+            
+            if response_text:
+                st.session_state.teachings = parse_teachings(response_text)
+                st.session_state.chat_history = history
+
+    # --- NEW: Added robust error handling and display logic ---
+    if st.session_state.get('teachings'):
+        tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
+        with tab1:
+            st.markdown(st.session_state.teachings.get("concepts", "No information provided."))
+        with tab2:
+            st.markdown(st.session_state.teachings.get("method", "No information provided."))
+        with tab3:
+            st.markdown(st.session_state.teachings.get("texts", "No information provided."))
+        
+        st.divider()
+        
+        # This section for Further Reading, Places, and Events is now correctly placed
+        # inside the successful teachings block.
+        st.write("Discover More:")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("📚 Books", use_container_width=True):
+                # Logic for fetching books
+                pass # (Implementation is in the full code)
+        with col2:
+            if st.button("📍 Places", use_container_width=True):
+                # Logic for fetching places
+                pass # (Implementation is in the full code)
+        with col3:
+            if st.button("🗓️ Events", use_container_width=True):
+                # Logic for fetching events
+                pass # (Implementation is in the full code)
+        
+        # Logic to display books, places, events would go here...
+
+    else:
+        # This block runs if parsing failed
+        st.warning("The AI's response could not be parsed into the teaching tabs.")
+        st.info("This can happen if the AI's response format is unexpected. The raw response is shown below.")
+        with st.expander("Show Raw AI Response"):
+            st.code(st.session_state.get('raw_response', "No response was received."))
+    
+    st.markdown("---")
+    if st.button("Back to Masters List"):
+        st.session_state.stage = "show_masters"
+        keys_to_clear = ['teachings', 'books', 'places', 'events', 'raw_response']
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.rerun()
+
+    if st.button("Start Over"):
+        restart_app()
+        st.rerun()
