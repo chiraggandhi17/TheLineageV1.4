@@ -115,4 +115,79 @@ if st.session_state.stage == "start":
         st.session_state.stage = "show_lineages"
         st.rerun()
 
-elif st.session_state.stage ==
+elif st.session_state.stage == "show_lineages":
+    st.subheader(f"Exploring: {st.session_state.vritti.capitalize()}")
+    if 'lineages' not in st.session_state:
+        with st.spinner("Consulting the ancient traditions..."):
+            prompt = f"Give me a list of spiritual lineages that talk about {st.session_state.vritti}."
+            response_text, history = call_gemini(prompt)
+            ai_lineages = parse_list(response_text) if response_text else []
+            base_lineages = ["Advaita Vedanta"]
+            combined = base_lineages + [l for l in ai_lineages if l not in base_lineages]
+            st.session_state.lineages = combined
+            st.session_state.chat_history = history
+    
+    st.write("Choose a path to explore further:")
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
+    for i, lineage in enumerate(st.session_state.lineages):
+        if st.button(lineage, key=f"lineage_{i}"):
+            st.session_state.chosen_lineage = lineage
+            st.session_state.stage = "show_masters"
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.divider()
+    
+    if st.button("Show More Lineages", key="more_lineages"):
+        with st.spinner("Finding more paths..."):
+            existing_lineages_str = ", ".join(st.session_state.lineages)
+            prompt = f"Can you list more spiritual lineages that discuss {st.session_state.vritti}, excluding the ones already mentioned: {existing_lineages_str}?"
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            if response_text:
+                new_lineages = parse_list(response_text)
+                st.session_state.lineages.extend([l for l in new_lineages if l not in st.session_state.lineages])
+                st.session_state.chat_history = history
+        st.rerun()
+
+    if st.button("Start Over"):
+        restart_app()
+        st.rerun()
+
+elif st.session_state.stage == "show_masters":
+    st.subheader(f"Path: {st.session_state.chosen_lineage}")
+    
+    if 'masters' not in st.session_state:
+        with st.spinner(f"Finding masters from the {st.session_state.chosen_lineage} lineage..."):
+            prompt = f"List masters from the {st.session_state.chosen_lineage} lineage who discussed {st.session_state.vritti}."
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            st.session_state.raw_response = response_text
+            if response_text:
+                st.session_state.masters = parse_list(response_text)
+                st.session_state.chat_history = history
+
+    if not st.session_state.get('masters'):
+        st.warning("No relevant masters were found for this topic.")
+        with st.expander("Show Raw AI Response (for debugging)"):
+            st.code(st.session_state.raw_response or "No response was received.")
+    else:
+        st.write("Choose a master to learn from:")
+        for i, master in enumerate(st.session_state.get('masters', [])):
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                image_url = find_master_image_url(master)
+                st.image(image_url, width=70)
+            with col2:
+                st.write(f"**{master}**")
+                if st.button(f"Explore Teachings", key=f"master_{i}"):
+                    keys_to_clear = ['teachings', 'books', 'places', 'events']
+                    for key in keys_to_clear:
+                        if key in st.session_state: del st.session_state[key]
+                    st.session_state.chosen_master = master
+                    st.session_state.stage = "show_teachings"
+                    st.rerun()
+    
+    st.divider()
+    if st.button("Go Back to Lineages"):
+        st.session_state.stage = "show_lineages"
+        if 'masters' in st.session_state: del st.session_state['masters']
+        st.rerun()
