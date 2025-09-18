@@ -57,6 +57,8 @@ system_instruction = """
 You are the 'Spiritual Navigator', a specialized AI guide. 
 CRITICAL RULE: All lists you generate MUST be in a numbered list format (e.g., "1. Item one\n2. Item two"). Respond with ONLY the numbered list.
 When providing the detailed teaching, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
+When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
+When asked for book recommendations, provide a numbered list. For each book, include the title, a one-sentence description, and a markdown link to search for it on Amazon.in.
 """
 
 # --- MASTER IMAGE DATABASE ---
@@ -84,6 +86,18 @@ def parse_list(text):
     items = re.findall(r'^\s*[\*\-\d]+\.?\s*(.+)$', text, re.MULTILINE)
     cleaned_items = [item.strip().replace('**', '') for item in items if item.strip()]
     return cleaned_items
+
+def parse_teachings(text):
+    if not text: return {}
+    sections = {}
+    parts = re.split(r'###\s*(Core Philosophical Concepts|The Prescribed Method or Practice|Reference to Key Texts)', text)
+    if len(parts) > 1:
+        for i in range(1, len(parts), 2):
+            heading, content = parts[i].strip(), parts[i+1].strip()
+            if "Concepts" in heading: sections["concepts"] = content
+            elif "Method" in heading: sections["method"] = content
+            elif "Texts" in heading: sections["texts"] = content
+    return sections
 
 def find_master_image_url(master_name_from_ai):
     master_name_lower = master_name_from_ai.lower()
@@ -135,29 +149,15 @@ elif st.session_state.stage == "show_lineages":
             st.session_state.stage = "show_masters"
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-    
     st.divider()
-    
-    if st.button("Show More Lineages", key="more_lineages"):
-        with st.spinner("Finding more paths..."):
-            existing_lineages_str = ", ".join(st.session_state.lineages)
-            prompt = f"Can you list more spiritual lineages that discuss {st.session_state.vritti}, excluding the ones already mentioned: {existing_lineages_str}?"
-            response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            if response_text:
-                new_lineages = parse_list(response_text)
-                st.session_state.lineages.extend([l for l in new_lineages if l not in st.session_state.lineages])
-                st.session_state.chat_history = history
-        st.rerun()
-
     if st.button("Start Over"):
         restart_app()
         st.rerun()
 
 elif st.session_state.stage == "show_masters":
     st.subheader(f"Path: {st.session_state.chosen_lineage}")
-    
     if 'masters' not in st.session_state:
-        with st.spinner(f"Finding masters from the {st.session_state.chosen_lineage} lineage..."):
+        with st.spinner(f"Finding masters..."):
             prompt = f"List masters from the {st.session_state.chosen_lineage} lineage who discussed {st.session_state.vritti}."
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
             st.session_state.raw_response = response_text
@@ -200,14 +200,12 @@ elif st.session_state.stage == "show_teachings":
         with st.spinner("Distilling the wisdom..."):
             prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with the markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts'."
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            
             st.session_state.raw_response = response_text
-            
             if response_text:
                 st.session_state.teachings = parse_teachings(response_text)
                 st.session_state.chat_history = history
             else:
-                st.session_state.teachings = {} # Ensure teachings is an empty dict if API fails
+                st.session_state.teachings = {}
 
     if st.session_state.get('teachings'):
         tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
