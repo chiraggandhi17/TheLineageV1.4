@@ -201,14 +201,14 @@ elif st.session_state.stage == "show_teachings":
             prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with the markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts'."
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
             
-            # Store the raw response for debugging before trying to parse
             st.session_state.raw_response = response_text
             
             if response_text:
                 st.session_state.teachings = parse_teachings(response_text)
                 st.session_state.chat_history = history
+            else:
+                st.session_state.teachings = {} # Ensure teachings is an empty dict if API fails
 
-    # --- NEW: Added robust error handling and display logic ---
     if st.session_state.get('teachings'):
         tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
         with tab1:
@@ -220,27 +220,46 @@ elif st.session_state.stage == "show_teachings":
         
         st.divider()
         
-        # This section for Further Reading, Places, and Events is now correctly placed
-        # inside the successful teachings block.
         st.write("Discover More:")
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("📚 Books", use_container_width=True):
-                # Logic for fetching books
-                pass # (Implementation is in the full code)
+                with st.spinner("Finding relevant books..."):
+                    book_prompt = f"Suggest 2-3 of the most important books for understanding the core teachings of {st.session_state.chosen_master}. These teachings will help in understanding topics like {st.session_state.vritti}. For each book, provide the title, a one-sentence description, and a markdown link to search for it on Amazon.in."
+                    response, _ = call_gemini(book_prompt, st.session_state.chat_history)
+                    st.session_state.books = response
         with col2:
             if st.button("📍 Places", use_container_width=True):
-                # Logic for fetching places
-                pass # (Implementation is in the full code)
+                with st.spinner("Locating significant places..."):
+                    prompt = f"Is there a significant place to visit associated with {st.session_state.chosen_master}? If yes, provide a numbered list with the place name, a one-sentence description, and its location. If no significant place exists, respond with ONLY the word 'None'."
+                    response, _ = call_gemini(prompt, st.session_state.chat_history)
+                    st.session_state.places = response
         with col3:
             if st.button("🗓️ Events", use_container_width=True):
-                # Logic for fetching events
-                pass # (Implementation is in the full code)
-        
-        # Logic to display books, places, events would go here...
+                with st.spinner("Checking for annual events..."):
+                    prompt = f"Are there any special annual events or festivals associated with {st.session_state.chosen_master}? If yes, provide a numbered list with the event name, a brief description, and the typical time of year it occurs. If no regular events are associated, respond with ONLY the word 'None'."
+                    response, _ = call_gemini(prompt, st.session_state.chat_history)
+                    st.session_state.events = response
 
+        if 'books' in st.session_state and st.session_state.books:
+            st.subheader("📚 Further Reading")
+            if "None" in st.session_state.books.strip():
+                st.info("No specific book recommendations were found for this topic.")
+            else:
+                st.markdown(st.session_state.books)
+        if 'places' in st.session_state and st.session_state.places:
+            st.subheader("📍 Places to Visit")
+            if "None" in st.session_state.places.strip():
+                st.info(f"No specific places are associated with {st.session_state.chosen_master}.")
+            else:
+                st.markdown(st.session_state.places)
+        if 'events' in st.session_state and st.session_state.events:
+            st.subheader("🗓️ Annual Events")
+            if "None" in st.session_state.events.strip():
+                st.info(f"No specific annual events are associated with {st.session_state.chosen_master}.")
+            else:
+                st.markdown(st.session_state.events)
     else:
-        # This block runs if parsing failed
         st.warning("The AI's response could not be parsed into the teaching tabs.")
         st.info("This can happen if the AI's response format is unexpected. The raw response is shown below.")
         with st.expander("Show Raw AI Response"):
