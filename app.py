@@ -46,7 +46,6 @@ def load_custom_css():
     """, unsafe_allow_html=True)
 
 # --- API CONFIGURATION ---
-api_key = "AIzaSyCnVxCjbGDV2Y56bC6xGWC0KfjBV9daAQE"
 if not api_key or "GEMINI_API_KEY" in api_key:
     st.error("Please add your Gemini API key to the code!")
     st.stop()
@@ -59,6 +58,7 @@ CRITICAL RULE: All lists you generate MUST be in a numbered list format (e.g., "
 When providing the detailed teaching, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
 When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
 When asked for book recommendations, provide a numbered list. For each book, include the title, a one-sentence description, and a markdown link to search for it on Amazon.in.
+When a user asks if a master belongs to a lineage, first answer with a simple "Yes." or "No.". If "No", then state which lineage they do belong to. If "Yes", then provide their teachings on the requested topic.
 """
 
 # --- MASTER IMAGE DATABASE ---
@@ -149,13 +149,35 @@ elif st.session_state.stage == "show_lineages":
             st.session_state.stage = "show_masters"
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+    
     st.divider()
+    if st.button("Show More Lineages", key="more_lineages"):
+        with st.spinner("Finding more paths..."):
+            existing_lineages_str = ", ".join(st.session_state.lineages)
+            prompt = f"Can you list more spiritual lineages that discuss {st.session_state.vritti}, excluding the ones already mentioned: {existing_lineages_str}?"
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            if response_text:
+                new_lineages = parse_list(response_text)
+                st.session_state.lineages.extend([l for l in new_lineages if l not in st.session_state.lineages])
+                st.session_state.chat_history = history
+        st.rerun()
+
     if st.button("Start Over"):
         restart_app()
         st.rerun()
 
 elif st.session_state.stage == "show_masters":
     st.subheader(f"Path: {st.session_state.chosen_lineage}")
+    
+    st.markdown("---")
+    searched_master = st.text_input("Or, search for a specific master:")
+    if st.button("Search Master"):
+        if searched_master:
+            st.session_state.searched_master = searched_master
+            st.session_state.stage = "show_searched_master"
+            st.rerun()
+    st.markdown("---")
+
     if 'masters' not in st.session_state:
         with st.spinner(f"Finding masters..."):
             prompt = f"List masters from the {st.session_state.chosen_lineage} lineage who discussed {st.session_state.vritti}."
@@ -187,9 +209,56 @@ elif st.session_state.stage == "show_masters":
                     st.rerun()
     
     st.divider()
+    if st.button("Show More Masters", key="more_masters"):
+        with st.spinner("Searching for more masters..."):
+            existing_masters_str = ", ".join(st.session_state.get('masters', []))
+            prompt = f"Can you list more masters from {st.session_state.chosen_lineage} who discussed {st.session_state.vritti}, excluding those already listed: {existing_masters_str}?"
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            if response_text:
+                new_masters = parse_list(response_text)
+                st.session_state.masters.extend([m for m in new_masters if m not in st.session_state.masters])
+                st.session_state.chat_history = history
+        st.rerun()
+
     if st.button("Go Back to Lineages"):
         st.session_state.stage = "show_lineages"
         if 'masters' in st.session_state: del st.session_state['masters']
+        st.rerun()
+
+elif st.session_state.stage == "show_searched_master":
+    st.subheader(f"Searching for: {st.session_state.searched_master}")
+    st.caption(f"Within the **{st.session_state.chosen_lineage}** lineage.")
+    
+    if 'searched_response' not in st.session_state:
+        with st.spinner("Consulting the records..."):
+            prompt = f"Does the master '{st.session_state.searched_master}' belong to the {st.session_state.chosen_lineage} lineage? Answer 'Yes.' or 'No.'. If 'No', then briefly state their correct lineage. If 'Yes', then provide their teachings on {st.session_state.vritti} structured with the required markdown headings."
+            response_text, _ = call_gemini(prompt)
+            st.session_state.searched_response = response_text
+
+    response_text = st.session_state.get('searched_response')
+    if response_text:
+        if response_text.strip().lower().startswith("no."):
+            st.warning(f"**{st.session_state.searched_master}** is not from the {st.session_state.chosen_lineage} lineage.")
+            st.info(response_text.replace("No.", "").strip())
+        elif response_text.strip().lower().startswith("yes."):
+            st.success(f"**{st.session_state.searched_master}** belongs to the {st.session_state.chosen_lineage} lineage.")
+            teachings = parse_teachings(response_text.replace("Yes.", "").strip())
+            if teachings:
+                tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
+                with tab1: st.markdown(teachings.get("concepts", "No information provided."))
+                with tab2: st.markdown(teachings.get("method", "No information provided."))
+                with tab3: st.markdown(teachings.get("texts", "No information provided."))
+        else:
+            st.info("The AI's response was inconclusive. Here is the raw text:")
+            st.markdown(response_text)
+    else:
+        st.error("No response was received for the searched master.")
+        
+    if st.button("Back to Master List"):
+        st.session_state.stage = "show_masters"
+        keys_to_clear = ['searched_master', 'searched_response']
+        for key in keys_to_clear:
+            if key in st.session_state: del st.session_state[key]
         st.rerun()
 
 elif st.session_state.stage == "show_teachings":
