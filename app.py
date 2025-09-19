@@ -112,7 +112,7 @@ def find_master_image_url(master_name):
         st.session_state.image_cache[master_name] = image_url
         return image_url
 
-# --- LANGUAGE FEATURE RESTORED ---
+# --- SESSION STATE INITIALIZATION ---
 if 'stage' not in st.session_state:
     st.session_state.stage = "start"
 if 'language' not in st.session_state:
@@ -125,6 +125,7 @@ def restart_app():
     st.session_state.stage = "start"
     st.session_state.language = lang
 
+# --- LOCALIZATION DICTIONARY ---
 L10N = {
     "English": {
         "caption": "An interactive guide to ancient wisdom on modern emotions.",
@@ -177,7 +178,6 @@ L10N = {
         "practice_info": "આંતરિક પ્રતિબિંબ માટે આ સંકેતોને અનુસરો.",
     }
 }
-
 # --- MAIN APP UI ---
 st.title("🧘 Spiritual Navigator")
 load_custom_css()
@@ -241,6 +241,9 @@ elif st.session_state.stage == "show_masters":
             with col2:
                 st.write(f"**{master}**")
                 if st.button(txt["explore_teachings"], key=f"master_{i}"):
+                    keys_to_clear = ['teachings', 'books', 'places', 'events', 'practice_text']
+                    for key in keys_to_clear:
+                        if key in st.session_state: del st.session_state[key]
                     st.session_state.chosen_master = master
                     st.session_state.stage = "show_teachings"
                     st.rerun()
@@ -258,7 +261,8 @@ elif st.session_state.stage == "show_teachings":
     st.caption(f"{txt['on']} **{st.session_state.vritti.capitalize()}** {txt['from']} **{st.session_state.chosen_lineage}** {txt['perspective']}")
     if 'teachings' not in st.session_state:
         with st.spinner(txt["distilling_wisdom"]):
-            prompt = f"Respond in {st.session_state.language}. What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with clear markdown headings for 'Core Philosophical Concepts', 'The Prescribed Method or Practice', and 'Reference to Key Texts', translating those headings into {st.session_state.language}."
+            translated_headings = [L10N[st.session_state.language]['core_concepts'], L10N[st.session_state.language]['the_method'], L10N[st.session_state.language]['key_texts']]
+            prompt = f"Respond in {st.session_state.language}. What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with these exact markdown headings: '### {translated_headings[0]}', '### {translated_headings[1]}', and '### {translated_headings[2]}'."
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
             st.session_state.raw_response = response_text
             if response_text:
@@ -274,15 +278,53 @@ elif st.session_state.stage == "show_teachings":
                 with tab:
                     st.markdown(st.session_state.teachings[headings[i]])
         st.divider()
-        st.subheader("Contemplative Practice")
-        if st.button(txt["guided_practice"]):
-            with st.spinner("Generating a relevant practice..."):
-                practice_prompt = f"Respond in {st.session_state.language}. Based on the teachings of {st.session_state.chosen_master} regarding '{st.session_state.vritti}', generate a short, guided contemplative practice. Present it as a series of 2-4 simple, actionable steps in a numbered list. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated with the teaching, add a section called '### Suggested Listening' and provide a markdown link to a YouTube search for it."
-                practice_response, _ = call_gemini(practice_prompt)
-                st.session_state.practice_text = practice_response
-        if 'practice_text' in st.session_state:
+        
+        # --- FEATURE RESTORED: "Discover More" and "Contemplate" now use auto-loading tabs ---
+        st.subheader("Discover More & Contemplate")
+        disc_tabs = st.tabs(["📚 Further Reading", "📍 Places to Visit", "🗓️ Annual Events", "🙏 Practice & Journal"])
+
+        with disc_tabs[0]: # Further Reading
+            if 'books' not in st.session_state:
+                with st.spinner("Finding relevant books..."):
+                    prompt = f"Respond in {st.session_state.language}. Suggest 2-3 books for understanding {st.session_state.chosen_master}'s core teachings on topics like {st.session_state.vritti}. Respond with a markdown table with columns for Book, a one-sentence Description, and a Link (to search on Amazon.in)."
+                    response, _ = call_gemini(prompt, st.session_state.chat_history)
+                    st.session_state.books = response or "None"
+            if "None" in st.session_state.books.strip():
+                st.info("No specific book recommendations were found.")
+            else:
+                st.markdown(st.session_state.books)
+        
+        with disc_tabs[1]: # Places to Visit
+            if 'places' not in st.session_state:
+                with st.spinner("Locating significant places..."):
+                    prompt = f"Respond in {st.session_state.language}. Is there a significant place to visit associated with {st.session_state.chosen_master}? Respond with a markdown table with columns for Place, Description, and Location. If no significant place exists, respond with ONLY the word 'None'."
+                    response, _ = call_gemini(prompt, st.session_state.chat_history)
+                    st.session_state.places = response or "None"
+            if "None" in st.session_state.places.strip():
+                st.info(f"No specific places are associated with {st.session_state.chosen_master}.")
+            else:
+                st.markdown(st.session_state.places)
+
+        with disc_tabs[2]: # Annual Events
+            if 'events' not in st.session_state:
+                with st.spinner("Checking for annual events..."):
+                    prompt = f"Respond in {st.session_state.language}. Are there any special annual events or festivals associated with {st.session_state.chosen_master}? Respond with a markdown table with columns for Event, Description, and 'Time of Year'. If no regular events are associated, respond with ONLY the word 'None'."
+                    response, _ = call_gemini(prompt, st.session_state.chat_history)
+                    st.session_state.events = response or "None"
+            if "None" in st.session_state.events.strip():
+                st.info(f"No specific annual events are associated with {st.session_state.chosen_master}.")
+            else:
+                st.markdown(st.session_state.events)
+        
+        with disc_tabs[3]: # Practice & Journal
             st.info(txt["practice_info"])
+            if 'practice_text' not in st.session_state:
+                with st.spinner("Generating a relevant practice..."):
+                    prompt = f"Respond in {st.session_state.language}. Based on the teachings of {st.session_state.chosen_master} regarding '{st.session_state.vritti}', generate a short, guided contemplative practice. Present it as 2-4 simple, actionable steps in a numbered list. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated with the teaching, add a section '### Suggested Listening' (translated to {st.session_state.language}) and a markdown link to a YouTube search for it."
+                    response, _ = call_gemini(prompt)
+                    st.session_state.practice_text = response or "No practice could be generated."
             st.markdown(st.session_state.practice_text)
+            st.text_area("Your Contemplation Journal:", height=150, key="journal_entry", help="Entries are for this session only.")
     else:
         st.warning(txt["could_not_parse"])
         with st.expander(txt["show_raw"]):
@@ -290,7 +332,7 @@ elif st.session_state.stage == "show_teachings":
     st.markdown("---")
     if st.button(txt["back_to_masters"]):
         st.session_state.stage = "show_masters"
-        keys_to_clear = ['teachings', 'raw_response', 'practice_text']
+        keys_to_clear = ['teachings', 'books', 'places', 'events', 'practice_text', 'raw_response']
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
