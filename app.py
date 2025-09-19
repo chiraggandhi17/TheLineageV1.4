@@ -59,11 +59,12 @@ CRITICAL RULE: All lists you generate MUST be in a numbered list format (e.g., "
 When providing the detailed teaching, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
 When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
 When asked for book recommendations, respond with a markdown table with columns: Book, Description, and Link (to search on Amazon.in).
-When asked to generate a contemplative practice, present it as a series of simple, actionable steps. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it.
 """
 
 # --- DATABASES & HELPERS ---
 PLACEHOLDER_IMAGE = "https://static.thenounproject.com/png/1230421-200.png"
+# --- MODIFIED: This list is now used to create the 'Independent Mystics' category ---
+INDEPENDENT_MASTERS = ["Sai Baba of Shirdi", "J. Krishnamurti", "Kabir", "Guru Nanak"]
 
 def call_gemini(prompt, history=None):
     try:
@@ -143,22 +144,14 @@ elif st.session_state.stage == "show_traditions":
     
     st.write("First, choose a broad tradition:")
     st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    for i, tradition in enumerate(st.session_state.get('traditions', [])):
+    
+    # --- MODIFIED: Add the new category to the list of buttons ---
+    traditions_to_show = st.session_state.get('traditions', []) + ["Independent Mystics & Philosophers"]
+    
+    for i, tradition in enumerate(traditions_to_show):
         if st.button(tradition, key=f"tradition_{i}"):
             st.session_state.chosen_tradition = tradition
             st.session_state.stage = "show_lineages"
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.divider()
-    st.write("Or, explore a specific master:")
-    featured_masters = ["Sai Baba of Shirdi", "J. Krishnamurti", "Kabir", "Guru Nanak"]
-    st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    for i, master in enumerate(featured_masters):
-        if st.button(master, key=f"featured_{i}"):
-            st.session_state.chosen_master = master
-            st.session_state.chosen_lineage = "their unique teachings"
-            st.session_state.stage = "show_teachings"
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -170,12 +163,18 @@ elif st.session_state.stage == "show_traditions":
 elif st.session_state.stage == "show_lineages":
     st.subheader(f"Tradition: {st.session_state.chosen_tradition}")
     if 'lineages' not in st.session_state:
-        with st.spinner(f"Finding schools within {st.session_state.chosen_tradition}..."):
-            prompt = f"Within the tradition of **{st.session_state.chosen_tradition}**, list specific Schools, Philosophies, or Lineages that have teachings on '{st.session_state.vritti}'."
-            response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            if response_text:
-                st.session_state.lineages = parse_list(response_text)
-                st.session_state.chat_history = history
+        # --- MODIFIED: Handle the new 'Independent Mystics' category ---
+        if st.session_state.chosen_tradition == "Independent Mystics & Philosophers":
+            st.session_state.lineages = INDEPENDENT_MASTERS
+            st.session_state.stage = "show_masters" # Skip directly to masters
+            st.rerun()
+        else:
+            with st.spinner(f"Finding schools within {st.session_state.chosen_tradition}..."):
+                prompt = f"Within the tradition of **{st.session_state.chosen_tradition}**, list specific Schools, Philosophies, or Lineages that have teachings on '{st.session_state.vritti}'."
+                response_text, history = call_gemini(prompt, st.session_state.chat_history)
+                if response_text:
+                    st.session_state.lineages = parse_list(response_text)
+                    st.session_state.chat_history = history
     
     st.write("Next, choose a specific school or lineage:")
     st.markdown('<div class="button-container">', unsafe_allow_html=True)
@@ -192,21 +191,26 @@ elif st.session_state.stage == "show_lineages":
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
+    if st.button("Start Over"):
+        restart_app()
+        st.rerun()
 
 elif st.session_state.stage == "show_masters":
+    # --- MODIFIED: Handle the new 'Independent Mystics' category ---
+    if st.session_state.chosen_tradition == "Independent Mystics & Philosophers":
+        st.session_state.masters = INDEPENDENT_MASTERS
+        st.session_state.chosen_lineage = "their unique path" # Use a generic lineage name
+    
     st.subheader(f"School: {st.session_state.chosen_lineage}")
     if 'masters' not in st.session_state:
         with st.spinner(f"Finding masters..."):
             prompt = f"List masters from the {st.session_state.chosen_lineage} school of thought who discussed {st.session_state.vritti}."
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            st.session_state.raw_response = response_text
             if response_text:
                 st.session_state.masters = parse_list(response_text)
                 st.session_state.chat_history = history
     if not st.session_state.get('masters'):
         st.warning("No relevant masters were found for this topic.")
-        with st.expander("Show Raw AI Response (for debugging)"):
-            st.code(st.session_state.raw_response or "No response was received.")
     else:
         st.write("Choose a master to learn from:")
         for i, master in enumerate(st.session_state.get('masters', [])):
@@ -217,9 +221,6 @@ elif st.session_state.stage == "show_masters":
             with col2:
                 st.write(f"**{master}**")
                 if st.button(f"Explore Teachings", key=f"master_{i}"):
-                    keys_to_clear = ['teachings', 'books', 'places', 'events', 'practice_text']
-                    for key in keys_to_clear:
-                        if key in st.session_state: del st.session_state[key]
                     st.session_state.chosen_master = master
                     st.session_state.stage = "show_teachings"
                     st.rerun()
@@ -228,6 +229,9 @@ elif st.session_state.stage == "show_masters":
     if st.button("Back to Schools/Lineages"):
         st.session_state.stage = "show_lineages"
         if 'masters' in st.session_state: del st.session_state['masters']
+        st.rerun()
+    if st.button("Start Over"):
+        restart_app()
         st.rerun()
 
 elif st.session_state.stage == "show_teachings":
