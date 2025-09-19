@@ -170,6 +170,12 @@ elif st.session_state.stage == "show_traditions":
         st.rerun()
 
 elif st.session_state.stage == "show_lineages":
+    # --- FIX: Added a check to ensure chosen_tradition exists ---
+    if 'chosen_tradition' not in st.session_state:
+        # If it doesn't exist, it means user backed up, so go to the previous step
+        st.session_state.stage = "show_traditions"
+        st.rerun()
+    
     st.subheader(f"Tradition: {st.session_state.chosen_tradition}")
     if 'lineages' not in st.session_state:
         with st.spinner(f"Finding schools within {st.session_state.chosen_tradition}..."):
@@ -190,40 +196,10 @@ elif st.session_state.stage == "show_lineages":
     st.divider()
     if st.button("Back to Traditions"):
         st.session_state.stage = "show_traditions"
-        keys_to_clear = ['lineages', 'masters', 'chosen_tradition']
+        # Clear data from this stage and subsequent stages
+        keys_to_clear = ['lineages', 'masters', 'chosen_tradition', 'chosen_lineage']
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
-        st.rerun()
-
-elif st.session_state.stage == "show_masters":
-    st.subheader(f"School: {st.session_state.chosen_lineage}")
-    if 'masters' not in st.session_state:
-        with st.spinner(f"Finding masters..."):
-            prompt = f"List masters from the {st.session_state.chosen_lineage} school of thought who discussed {st.session_state.vritti}."
-            response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            if response_text:
-                st.session_state.masters = parse_list(response_text)
-                st.session_state.chat_history = history
-    if not st.session_state.get('masters'):
-        st.warning("No relevant masters were found for this topic.")
-    else:
-        st.write("Choose a master to learn from:")
-        for i, master in enumerate(st.session_state.get('masters', [])):
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                image_url = find_master_image_url(master)
-                st.image(image_url, width=70)
-            with col2:
-                st.write(f"**{master}**")
-                if st.button(f"Explore Teachings", key=f"master_{i}"):
-                    st.session_state.chosen_master = master
-                    st.session_state.stage = "show_teachings"
-                    st.rerun()
-    
-    st.divider()
-    if st.button("Back to Schools/Lineages"):
-        st.session_state.stage = "show_lineages"
-        if 'masters' in st.session_state: del st.session_state['masters']
         st.rerun()
 
 elif st.session_state.stage == "show_teachings":
