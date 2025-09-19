@@ -57,9 +57,6 @@ system_instruction = """
 You are the 'Spiritual Navigator', a specialized AI guide. 
 CRITICAL RULE: All lists you generate MUST be in a numbered list format (e.g., "1. Item one\n2. Item two"). Respond with ONLY the numbered list.
 When providing the detailed teaching, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
-When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
-When asked for book recommendations, provide a numbered list. For each book, include the title, a one-sentence description, and a markdown link to search for it on Amazon.in.
-When a user asks if a master belongs to a lineage, first answer with a simple "Yes." or "No.". If "No", then state which lineage they do belong to. If "Yes", then provide their teachings on the requested topic.
 """
 
 # --- MASTER IMAGE DATABASE ---
@@ -88,18 +85,6 @@ def parse_list(text):
     cleaned_items = [item.strip().replace('**', '') for item in items if item.strip()]
     return cleaned_items
 
-def parse_teachings(text):
-    if not text: return {}
-    sections = {}
-    parts = re.split(r'###\s*(Core Philosophical Concepts|The Prescribed Method or Practice|Reference to Key Texts)', text)
-    if len(parts) > 1:
-        for i in range(1, len(parts), 2):
-            heading, content = parts[i].strip(), parts[i+1].strip()
-            if "Concepts" in heading: sections["concepts"] = content
-            elif "Method" in heading: sections["method"] = content
-            elif "Texts" in heading: sections["texts"] = content
-    return sections
-
 def find_master_image_url(master_name_from_ai):
     master_name_lower = master_name_from_ai.lower()
     for known_name, url in MASTER_IMAGES.items():
@@ -127,58 +112,63 @@ if st.session_state.stage == "start":
     if vritti_input:
         restart_app()
         st.session_state.vritti = vritti_input
-        st.session_state.stage = "show_lineages"
+        st.session_state.stage = "show_traditions" # RE-ARCHITECTED: First step is now traditions
         st.rerun()
 
-elif st.session_state.stage == "show_lineages":
+# --- RE-ARCHITECTED STAGE 1: SHOW TRADITIONS ---
+elif st.session_state.stage == "show_traditions":
     st.subheader(f"Exploring: {st.session_state.vritti.capitalize()}")
-    if 'lineages' not in st.session_state:
-        with st.spinner("Consulting the ancient traditions..."):
-            prompt = f"Give me a list of spiritual lineages that talk about {st.session_state.vritti}."
+    if 'traditions' not in st.session_state:
+        with st.spinner("Consulting the world's wisdom traditions..."):
+            prompt = f"For the emotion '{st.session_state.vritti}', list the broad spiritual/religious **Traditions** that have discussed it. Use umbrella terms like 'Indic Traditions (Hinduism)', 'Buddhist Traditions', 'Taoist Traditions', 'Abrahamic Mysticism (Sufism)', etc."
             response_text, history = call_gemini(prompt)
-            ai_lineages = parse_list(response_text) if response_text else []
-            base_lineages = ["Advaita Vedanta"]
-            combined = base_lineages + [l for l in ai_lineages if l not in base_lineages]
-            st.session_state.lineages = combined
-            st.session_state.chat_history = history
+            if response_text:
+                st.session_state.traditions = parse_list(response_text)
+                st.session_state.chat_history = history
     
-    st.write("Choose a path to explore further:")
+    st.write("First, choose a broad tradition:")
     st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    for i, lineage in enumerate(st.session_state.lineages):
+    for i, tradition in enumerate(st.session_state.get('traditions', [])):
+        if st.button(tradition, key=f"tradition_{i}"):
+            st.session_state.chosen_tradition = tradition
+            st.session_state.stage = "show_lineages" # Move to the new lineages stage
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.divider()
+    if st.button("Start Over"):
+        restart_app()
+        st.rerun()
+
+# --- RE-ARCHITECTED STAGE 2: SHOW LINEAGES WITHIN A TRADITION ---
+elif st.session_state.stage == "show_lineages":
+    st.subheader(f"Tradition: {st.session_state.chosen_tradition}")
+    if 'lineages' not in st.session_state:
+        with st.spinner(f"Finding schools within {st.session_state.chosen_tradition}..."):
+            prompt = f"Within the tradition of **{st.session_state.chosen_tradition}**, list the specific **Schools, Philosophies, or Lineages** that have teachings on '{st.session_state.vritti}'."
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            if response_text:
+                st.session_state.lineages = parse_list(response_text)
+                st.session_state.chat_history = history
+    
+    st.write("Next, choose a specific school or lineage:")
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
+    for i, lineage in enumerate(st.session_state.get('lineages', [])):
         if st.button(lineage, key=f"lineage_{i}"):
             st.session_state.chosen_lineage = lineage
             st.session_state.stage = "show_masters"
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-    
     st.divider()
-    if st.button("Show More Lineages", key="more_lineages"):
-        with st.spinner("Finding more paths..."):
-            existing_lineages_str = ", ".join(st.session_state.lineages)
-            prompt = f"Can you list more spiritual lineages that discuss {st.session_state.vritti}, excluding the ones already mentioned: {existing_lineages_str}?"
-            response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            if response_text:
-                new_lineages = parse_list(response_text)
-                st.session_state.lineages.extend([l for l in new_lineages if l not in st.session_state.lineages])
-                st.session_state.chat_history = history
-        st.rerun()
-
-    if st.button("Start Over"):
-        restart_app()
+    if st.button("Back to Traditions"):
+        st.session_state.stage = "show_traditions"
+        # Clear data from this stage and subsequent stages
+        keys_to_clear = ['lineages', 'masters', 'chosen_tradition']
+        for key in keys_to_clear:
+            if key in st.session_state: del st.session_state[key]
         st.rerun()
 
 elif st.session_state.stage == "show_masters":
-    st.subheader(f"Path: {st.session_state.chosen_lineage}")
-    
-    st.markdown("---")
-    searched_master = st.text_input("Or, search for a specific master:")
-    if st.button("Search Master"):
-        if searched_master:
-            st.session_state.searched_master = searched_master
-            st.session_state.stage = "show_searched_master"
-            st.rerun()
-    st.markdown("---")
-
+    st.subheader(f"School: {st.session_state.chosen_lineage}")
     if 'masters' not in st.session_state:
         with st.spinner(f"Finding masters..."):
             prompt = f"List masters from the {st.session_state.chosen_lineage} lineage who discussed {st.session_state.vritti}."
@@ -190,8 +180,6 @@ elif st.session_state.stage == "show_masters":
 
     if not st.session_state.get('masters'):
         st.warning("No relevant masters were found for this topic.")
-        with st.expander("Show Raw AI Response (for debugging)"):
-            st.code(st.session_state.raw_response or "No response was received.")
     else:
         st.write("Choose a master to learn from:")
         for i, master in enumerate(st.session_state.get('masters', [])):
@@ -202,146 +190,38 @@ elif st.session_state.stage == "show_masters":
             with col2:
                 st.write(f"**{master}**")
                 if st.button(f"Explore Teachings", key=f"master_{i}"):
-                    keys_to_clear = ['teachings', 'books', 'places', 'events']
-                    for key in keys_to_clear:
-                        if key in st.session_state: del st.session_state[key]
                     st.session_state.chosen_master = master
                     st.session_state.stage = "show_teachings"
                     st.rerun()
     
     st.divider()
-    if st.button("Show More Masters", key="more_masters"):
-        with st.spinner("Searching for more masters..."):
-            existing_masters_str = ", ".join(st.session_state.get('masters', []))
-            prompt = f"Can you list more masters from {st.session_state.chosen_lineage} who discussed {st.session_state.vritti}, excluding those already listed: {existing_masters_str}?"
-            response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            if response_text:
-                new_masters = parse_list(response_text)
-                st.session_state.masters.extend([m for m in new_masters if m not in st.session_state.masters])
-                st.session_state.chat_history = history
-        st.rerun()
-
-    if st.button("Go Back to Lineages"):
+    if st.button("Back to Schools/Lineages"):
         st.session_state.stage = "show_lineages"
         if 'masters' in st.session_state: del st.session_state['masters']
         st.rerun()
 
-elif st.session_state.stage == "show_searched_master":
-    st.subheader(f"Searching for: {st.session_state.searched_master}")
-    st.caption(f"Within the **{st.session_state.chosen_lineage}** lineage.")
-    
-    if 'searched_response' not in st.session_state:
-        with st.spinner("Consulting the records..."):
-            prompt = f"Does the master '{st.session_state.searched_master}' belong to the {st.session_state.chosen_lineage} lineage? Answer 'Yes.' or 'No.'. If 'No', then briefly state their correct lineage. If 'Yes', then provide their teachings on {st.session_state.vritti} structured with the required markdown headings."
-            response_text, _ = call_gemini(prompt)
-            st.session_state.searched_response = response_text
-
-    response_text = st.session_state.get('searched_response')
-    if response_text:
-        if response_text.strip().lower().startswith("no."):
-            st.warning(f"**{st.session_state.searched_master}** is not from the {st.session_state.chosen_lineage} lineage.")
-            st.info(response_text.replace("No.", "").strip())
-        elif response_text.strip().lower().startswith("yes."):
-            st.success(f"**{st.session_state.searched_master}** belongs to the {st.session_state.chosen_lineage} lineage.")
-            teachings = parse_teachings(response_text.replace("Yes.", "").strip())
-            if teachings:
-                tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
-                with tab1: st.markdown(teachings.get("concepts", "No information provided."))
-                with tab2: st.markdown(teachings.get("method", "No information provided."))
-                with tab3: st.markdown(teachings.get("texts", "No information provided."))
-        else:
-            st.info("The AI's response was inconclusive. Here is the raw text:")
-            st.markdown(response_text)
-    else:
-        st.error("No response was received for the searched master.")
-        
-    if st.button("Back to Master List"):
-        st.session_state.stage = "show_masters"
-        keys_to_clear = ['searched_master', 'searched_response']
-        for key in keys_to_clear:
-            if key in st.session_state: del st.session_state[key]
-        st.rerun()
-
+# --- The final stage, show_teachings, remains largely the same ---
 elif st.session_state.stage == "show_teachings":
     st.subheader(f"Teachings of {st.session_state.chosen_master}")
-    st.caption(f"On **{st.session_state.vritti.capitalize()}** from the **{st.session_state.chosen_lineage}** perspective.")
+    st.caption(f"From the **{st.session_state.chosen_lineage}** perspective.")
     
     if 'teachings' not in st.session_state:
         with st.spinner("Distilling the wisdom..."):
-            prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with the markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts'."
+            prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}?"
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            st.session_state.raw_response = response_text
             if response_text:
                 st.session_state.teachings = parse_teachings(response_text)
-                st.session_state.chat_history = history
-            else:
-                st.session_state.teachings = {}
-
+    
     if st.session_state.get('teachings'):
         tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
-        with tab1:
-            st.markdown(st.session_state.teachings.get("concepts", "No information provided."))
-        with tab2:
-            st.markdown(st.session_state.teachings.get("method", "No information provided."))
-        with tab3:
-            st.markdown(st.session_state.teachings.get("texts", "No information provided."))
-        
-        st.divider()
-        
-        st.write("Discover More:")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("📚 Books", use_container_width=True):
-                with st.spinner("Finding relevant books..."):
-                    book_prompt = f"Suggest 2-3 of the most important books for understanding the core teachings of {st.session_state.chosen_master}. These teachings will help in understanding topics like {st.session_state.vritti}. For each book, provide the title, a one-sentence description, and a markdown link to search for it on Amazon.in."
-                    response, _ = call_gemini(book_prompt, st.session_state.chat_history)
-                    st.session_state.books = response
-        with col2:
-            if st.button("📍 Places", use_container_width=True):
-                with st.spinner("Locating significant places..."):
-                    prompt = f"Is there a significant place to visit associated with {st.session_state.chosen_master}? If yes, provide a numbered list with the place name, a one-sentence description, and its location. If no significant place exists, respond with ONLY the word 'None'."
-                    response, _ = call_gemini(prompt, st.session_state.chat_history)
-                    st.session_state.places = response
-        with col3:
-            if st.button("🗓️ Events", use_container_width=True):
-                with st.spinner("Checking for annual events..."):
-                    prompt = f"Are there any special annual events or festivals associated with {st.session_state.chosen_master}? If yes, provide a numbered list with the event name, a brief description, and the typical time of year it occurs. If no regular events are associated, respond with ONLY the word 'None'."
-                    response, _ = call_gemini(prompt, st.session_state.chat_history)
-                    st.session_state.events = response
-
-        if 'books' in st.session_state and st.session_state.books:
-            st.subheader("📚 Further Reading")
-            if "None" in st.session_state.books.strip():
-                st.info("No specific book recommendations were found for this topic.")
-            else:
-                st.markdown(st.session_state.books)
-        if 'places' in st.session_state and st.session_state.places:
-            st.subheader("📍 Places to Visit")
-            if "None" in st.session_state.places.strip():
-                st.info(f"No specific places are associated with {st.session_state.chosen_master}.")
-            else:
-                st.markdown(st.session_state.places)
-        if 'events' in st.session_state and st.session_state.events:
-            st.subheader("🗓️ Annual Events")
-            if "None" in st.session_state.events.strip():
-                st.info(f"No specific annual events are associated with {st.session_state.chosen_master}.")
-            else:
-                st.markdown(st.session_state.events)
+        with tab1: st.markdown(st.session_state.teachings.get("concepts", "No information provided."))
+        with tab2: st.markdown(st.session_state.teachings.get("method", "No information provided."))
+        with tab3: st.markdown(st.session_state.teachings.get("texts", "No information provided."))
     else:
-        st.warning("The AI's response could not be parsed into the teaching tabs.")
-        st.info("This can happen if the AI's response format is unexpected. The raw response is shown below.")
-        with st.expander("Show Raw AI Response"):
-            st.code(st.session_state.get('raw_response', "No response was received."))
-    
-    st.markdown("---")
+        st.warning("Could not parse the teachings for this master.")
+
+    st.divider()
     if st.button("Back to Masters List"):
         st.session_state.stage = "show_masters"
-        keys_to_clear = ['teachings', 'books', 'places', 'events', 'raw_response']
-        for key in keys_to_clear:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.rerun()
-
-    if st.button("Start Over"):
-        restart_app()
+        if 'teachings' in st.session_state: del st.session_state['teachings']
         st.rerun()
