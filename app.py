@@ -59,9 +59,10 @@ CRITICAL RULE: All lists you generate MUST be in a numbered list format (e.g., "
 When providing the detailed teaching, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
 When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
 When asked for book recommendations, provide a numbered list. For each book, include the title, a one-sentence description, and a markdown link to search for it on Amazon.in.
+When asked to generate a contemplative practice, present it as a series of 2-4 simple, actionable steps in a numbered list. The practice must be a practical exercise, not a philosophical explanation.
 """
 
-# --- MASTER IMAGE DATABASE ---
+# --- DATABASES ---
 MASTER_IMAGES = {
     "Ramana Maharshi": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Ramana_Maharshi_1935.jpg",
     "Nisargadatta Maharaj": "https://upload.wikimedia.org/wikipedia/en/8/8f/Nisargadatta.jpg",
@@ -69,6 +70,20 @@ MASTER_IMAGES = {
     "Rumi": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Mevlana_Rumi.jpg/800px-Mevlana_Rumi.jpg"
 }
 PLACEHOLDER_IMAGE = "https://static.thenounproject.com/png/1230421-200.png"
+
+PATHS = {
+    "anger_path": {
+        "title": "A 5-Day Path on Anger",
+        "vritti": "Anger",
+        "tasks": [
+            {"day": 1, "type": "lineage", "target": "Advaita Vedanta", "tradition": "Indic Traditions (Hinduism)", "instruction": "Explore the Advaita Vedanta perspective. Reflect on how the idea of the 'ego' relates to your experience of anger."},
+            {"day": 2, "type": "master", "target": "Ramana Maharshi", "lineage": "Advaita Vedanta", "instruction": "Focus on the teachings of Ramana Maharshi. After reading, try the 'Begin a Guided Practice' section below."},
+            {"day": 3, "type": "journal", "instruction": "Reflect on the last two days. Journal on the question: 'When anger arises, where does it come from and who is it happening to?'"},
+            {"day": 4, "type": "lineage", "target": "Sufism", "tradition": "Abrahamic Mysticism", "instruction": "Explore a different perspective from Sufism. Notice any similarities or differences to the previous teachings."},
+            {"day": 5, "type": "journal", "instruction": "Final reflection. How has your understanding of anger shifted? Write down one practical insight you can carry forward."}
+        ]
+    }
+}
 
 # --- HELPER FUNCTIONS ---
 def call_gemini(prompt, history=None):
@@ -109,66 +124,172 @@ def find_master_image_url(master_name_from_ai):
 
 # --- SESSION STATE INITIALIZATION ---
 if 'stage' not in st.session_state:
-    st.session_state.stage = "start"
+    st.session_state.stage = "main_menu"
 
-def restart_app():
+def full_restart():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
-    st.session_state.stage = "start"
+    st.session_state.stage = "main_menu"
 
 # --- MAIN APP UI ---
 st.title("🧘 Spiritual Navigator")
 load_custom_css()
 st.caption("An interactive guide to ancient wisdom on modern emotions.")
 
-if st.session_state.stage == "start":
+if st.session_state.stage == "main_menu":
+    st.subheader("Welcome")
+    st.write("Choose how you would like to begin your journey.")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Single Exploration", use_container_width=True):
+            st.session_state.stage = "start_single_query"
+            st.rerun()
+    with col2:
+        if st.button("Contemplative Path", use_container_width=True):
+            st.session_state.stage = "path_selection"
+            st.rerun()
+
+elif st.session_state.stage == "start_single_query":
     vritti_input = st.text_input("Enter an emotion, tendency, or 'vritti' to begin:", key="vritti_input")
     if vritti_input:
-        restart_app()
+        full_restart()
         st.session_state.vritti = vritti_input
-        st.session_state.stage = "show_lineages"
+        st.session_state.stage = "show_traditions"
+        st.rerun()
+    if st.button("Back to Main Menu"):
+        st.session_state.stage = "main_menu"
+        st.rerun()
+
+elif st.session_state.stage == "path_selection":
+    st.subheader("Choose a Contemplative Path")
+    for path_key, path_data in PATHS.items():
+        if st.button(path_data["title"], use_container_width=True):
+            st.session_state.current_path = path_key
+            st.session_state.stage = "day_selection" 
+            st.rerun()
+    st.divider()
+    if st.button("Back to Main Menu"):
+        st.session_state.stage = "main_menu"
+        st.rerun()
+
+elif st.session_state.stage == "day_selection":
+    path_data = PATHS[st.session_state.current_path]
+    st.subheader(path_data["title"])
+    st.write("Select a day to begin your contemplation.")
+    
+    for task in path_data["tasks"]:
+        if st.button(f"Day {task['day']}: {task['type'].title()} - {task.get('target', 'Reflection')}", use_container_width=True):
+            st.session_state.current_day = task['day']
+            st.session_state.stage = "on_path_task"
+            st.rerun()
+            
+    st.divider()
+    if st.button("Choose a Different Path"):
+        st.session_state.stage = "path_selection"
+        if 'current_path' in st.session_state: del st.session_state.current_path
+        st.rerun()
+
+elif st.session_state.stage == "on_path_task":
+    path_data = PATHS[st.session_state.current_path]
+    day_index = st.session_state.current_day - 1
+    task = path_data["tasks"][day_index]
+    st.header(f"{path_data['title']}")
+    st.subheader(f"Day {task['day']}: {task['type'].replace('_', ' ').title()}")
+    st.info(f"**Today's Focus:** {task['instruction']}")
+    st.divider()
+    
+    # Display content based on the task type
+    if task["type"] == "lineage":
+        st.subheader(f"Exploring: {task['target']}")
+        # Simplified display for lineage content
+        st.write(f"Content about {task['target']} on the topic of {path_data['vritti']} would be displayed here.")
+    
+    elif task["type"] == "master":
+        st.session_state.chosen_master = task["target"]
+        st.session_state.vritti = path_data["vritti"]
+        st.session_state.chosen_lineage = task["lineage"]
+        
+        if 'teachings' not in st.session_state:
+            with st.spinner("Distilling the wisdom..."):
+                prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}?"
+                response_text, _ = call_gemini(prompt)
+                st.session_state.teachings = parse_teachings(response_text or "")
+        
+        if st.session_state.get('teachings'):
+             tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
+             with tab1: st.markdown(st.session_state.teachings.get("concepts", "Not available."))
+             with tab2: st.markdown(st.session_state.teachings.get("method", "Not available."))
+             with tab3: st.markdown(st.session_state.teachings.get("texts", "Not available."))
+        else:
+            st.warning("Could not load teachings at this moment.")
+
+    elif task["type"] == "journal":
+        st.text_area("Your Reflections:", height=200, key=f"journal_{day_index}", help="Entries are for this session only and will reset when you leave.")
+    
+    st.divider()
+    if st.button("Back to Day Selection"):
+        st.session_state.stage = "day_selection"
+        if 'teachings' in st.session_state: del st.session_state['teachings']
+        st.rerun()
+
+elif st.session_state.stage == "show_traditions":
+    st.subheader(f"Exploring: {st.session_state.vritti.capitalize()}")
+    if 'traditions' not in st.session_state:
+        with st.spinner("Consulting the world's wisdom traditions..."):
+            prompt = f"For the emotion '{st.session_state.vritti}', list broad spiritual/religious Traditions. Use umbrella terms like 'Indic Traditions (Hinduism)', 'Buddhist Traditions', 'Taoist Traditions', etc."
+            response_text, history = call_gemini(prompt)
+            if response_text:
+                st.session_state.traditions = parse_list(response_text)
+                st.session_state.chat_history = history
+    st.write("First, choose a broad tradition:")
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
+    for i, tradition in enumerate(st.session_state.get('traditions', [])):
+        if st.button(tradition, key=f"tradition_{i}"):
+            st.session_state.chosen_tradition = tradition
+            st.session_state.stage = "show_lineages"
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.divider()
+    if st.button("Back to Main Menu"):
+        st.session_state.stage = "main_menu"
         st.rerun()
 
 elif st.session_state.stage == "show_lineages":
-    st.subheader(f"Exploring: {st.session_state.vritti.capitalize()}")
+    st.subheader(f"Tradition: {st.session_state.chosen_tradition}")
     if 'lineages' not in st.session_state:
-        with st.spinner("Consulting the ancient traditions..."):
-            prompt = f"Give me a list of spiritual lineages that talk about {st.session_state.vritti}."
-            response_text, history = call_gemini(prompt)
-            ai_lineages = parse_list(response_text) if response_text else []
-            base_lineages = ["Advaita Vedanta"]
-            combined = base_lineages + [l for l in ai_lineages if l not in base_lineages]
-            st.session_state.lineages = combined
-            st.session_state.chat_history = history
-    
-    st.write("Choose a path to explore further:")
+        with st.spinner(f"Finding schools within {st.session_state.chosen_tradition}..."):
+            prompt = f"Within the tradition of **{st.session_state.chosen_tradition}**, list specific Schools, Philosophies, or Lineages that have teachings on '{st.session_state.vritti}'."
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            if response_text:
+                st.session_state.lineages = parse_list(response_text)
+                st.session_state.chat_history = history
+    st.write("Next, choose a specific school or lineage:")
     st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    for i, lineage in enumerate(st.session_state.lineages):
+    for i, lineage in enumerate(st.session_state.get('lineages', [])):
         if st.button(lineage, key=f"lineage_{i}"):
             st.session_state.chosen_lineage = lineage
             st.session_state.stage = "show_masters"
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
     st.divider()
-    if st.button("Start Over"):
-        restart_app()
+    if st.button("Back to Traditions"):
+        st.session_state.stage = "show_traditions"
+        keys_to_clear = ['lineages', 'masters', 'chosen_tradition']
+        for key in keys_to_clear:
+            if key in st.session_state: del st.session_state[key]
         st.rerun()
 
 elif st.session_state.stage == "show_masters":
-    st.subheader(f"Path: {st.session_state.chosen_lineage}")
+    st.subheader(f"School: {st.session_state.chosen_lineage}")
     if 'masters' not in st.session_state:
         with st.spinner(f"Finding masters..."):
             prompt = f"List masters from the {st.session_state.chosen_lineage} lineage who discussed {st.session_state.vritti}."
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            st.session_state.raw_response = response_text
             if response_text:
                 st.session_state.masters = parse_list(response_text)
                 st.session_state.chat_history = history
-
     if not st.session_state.get('masters'):
         st.warning("No relevant masters were found for this topic.")
-        with st.expander("Show Raw AI Response (for debugging)"):
-            st.code(st.session_state.raw_response or "No response was received.")
     else:
         st.write("Choose a master to learn from:")
         for i, master in enumerate(st.session_state.get('masters', [])):
@@ -179,86 +300,46 @@ elif st.session_state.stage == "show_masters":
             with col2:
                 st.write(f"**{master}**")
                 if st.button(f"Explore Teachings", key=f"master_{i}"):
-                    keys_to_clear = ['teachings', 'books', 'places', 'events']
-                    for key in keys_to_clear:
-                        if key in st.session_state: del st.session_state[key]
                     st.session_state.chosen_master = master
                     st.session_state.stage = "show_teachings"
                     st.rerun()
-    
     st.divider()
-    if st.button("Go Back to Lineages"):
+    if st.button("Back to Schools/Lineages"):
         st.session_state.stage = "show_lineages"
         if 'masters' in st.session_state: del st.session_state['masters']
         st.rerun()
 
 elif st.session_state.stage == "show_teachings":
     st.subheader(f"Teachings of {st.session_state.chosen_master}")
-    st.caption(f"On **{st.session_state.vritti.capitalize()}** from the **{st.session_state.chosen_lineage}** perspective.")
-    
+    st.caption(f"From the **{st.session_state.chosen_lineage}** perspective.")
     if 'teachings' not in st.session_state:
         with st.spinner("Distilling the wisdom..."):
-            prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with the markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts'."
-            response_text, history = call_gemini(prompt, st.session_state.chat_history)
-            st.session_state.raw_response = response_text
+            prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}?"
+            response_text, _ = call_gemini(prompt, st.session_state.chat_history)
             if response_text:
                 st.session_state.teachings = parse_teachings(response_text)
-                st.session_state.chat_history = history
-            else:
-                st.session_state.teachings = {}
-
     if st.session_state.get('teachings'):
         tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
         with tab1: st.markdown(st.session_state.teachings.get("concepts", "No information provided."))
         with tab2: st.markdown(st.session_state.teachings.get("method", "No information provided."))
         with tab3: st.markdown(st.session_state.teachings.get("texts", "No information provided."))
-        
         st.divider()
-        st.write("Discover More:")
-        col1, col2, col3 = st.columns(3)
-        # ... (Discover More buttons for Books, Places, Events are here)
-
-        if 'books' in st.session_state and st.session_state.books:
-            # ... (Display logic for books)
-            pass
-
-        # --- CONTEMPLATIVE FEATURES ADDED ---
-        st.divider()
+        # The dynamic contemplative practice
         st.subheader("Contemplative Practice")
-
-        if st.button("Begin Guided Self-Inquiry"):
-            st.session_state.show_inquiry = True
-        
-        if st.session_state.get('show_inquiry'):
+        if st.button("Begin a Guided Practice"):
+            with st.spinner("Generating a relevant practice..."):
+                practice_prompt = f"Based on the teachings of {st.session_state.chosen_master} from the {st.session_state.chosen_lineage} tradition regarding '{st.session_state.vritti}', generate a short, guided contemplative practice. Present it as 2-4 simple, actionable steps in a numbered list."
+                practice_response, _ = call_gemini(practice_prompt)
+                st.session_state.practice_text = practice_response
+        if 'practice_text' in st.session_state:
             st.info("Follow these prompts for inner reflection.")
-            st.markdown(f"> The feeling of **'{st.session_state.vritti}'** has arisen. Acknowledge its presence without judgment.")
-            st.markdown(f"> Now, ask inwardly: **'To whom has this feeling come?'**")
-            st.markdown(f"> The natural answer is, 'It has come to me.' Hold this 'me'.")
-            st.markdown(f"> Now, turn your attention fully to the source of this 'I'. Ask: **'Who am I?'**")
-            st.markdown(f"> Do not look for a verbal answer. Let your attention rest on the feeling of existence itself.")
-
-        st.subheader("Your Contemplation Journal")
-        st.text_area(
-            "Record your reflections here. What have you noticed?", 
-            height=200, 
-            key="journal_entry",
-            help="Entries are for this session only and will be cleared when you leave or start over."
-        )
-
+            st.markdown(st.session_state.practice_text)
     else:
-        st.warning("The AI's response could not be parsed into the teaching tabs.")
-        with st.expander("Show Raw AI Response"):
-            st.code(st.session_state.get('raw_response', "No response was received."))
-    
-    st.markdown("---")
+        st.warning("Could not parse the teachings for this master.")
+    st.divider()
     if st.button("Back to Masters List"):
         st.session_state.stage = "show_masters"
-        keys_to_clear = ['teachings', 'books', 'places', 'events', 'raw_response', 'show_inquiry']
+        keys_to_clear = ['teachings', 'practice_text']
         for key in keys_to_clear:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.rerun()
-
-    if st.button("Start Over"):
-        restart_app()
+            if key in st.session_state: del st.session_state[key]
         st.rerun()
