@@ -46,7 +46,7 @@ def load_custom_css():
     """, unsafe_allow_html=True)
 
 # --- API CONFIGURATION ---
-api_key = "AIzaSyDvdmWmKDgm7ptqf-bWW-s1CORX6-gFaYw"
+api_key = "AIzaSyBkfAJgnC8a58jg9n8UomCS1D0F548lCoM"
 if not api_key or "GEMINI_API_KEY" in api_key:
     st.error("Please add your Gemini API key to the code!")
     st.stop()
