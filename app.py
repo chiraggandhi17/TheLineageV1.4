@@ -54,27 +54,16 @@ genai.configure(api_key=api_key)
 
 # --- SYSTEM INSTRUCTION (THE "GEM" PROMPT) ---
 system_instruction = """
-You are the 'Spiritual Navigator', a specialized AI guide. 
+You are the 'Spiritual Navigator', a specialized AI guide. The user will specify a language for you to respond in. All your responses, including lists and teachings, must be in that specified language.
 CRITICAL RULE: All lists you generate MUST be in a numbered list format (e.g., "1. Item one\n2. Item two"). Respond with ONLY the numbered list.
-When providing the detailed teaching, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
-When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
-When asked for book recommendations, provide a numbered list. For each book, include the title, a one-sentence description, and a markdown link to search for it on Amazon.in.
+When providing the detailed teaching, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts" (translate these headings into the user's chosen language).
+When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None' (in English).
+When asked for book recommendations, provide a numbered list. For each book, include the title (in its original language if possible), a one-sentence description, and a markdown link to search for it on Amazon.in.
 """
 
-# --- MASTER IMAGE DATABASE & HELPER ---
-MASTER_IMAGES = {
-    "Ramana Maharshi": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Ramana_Maharshi_1935.jpg",
-    "Nisargadatta Maharaj": "https://upload.wikimedia.org/wikipedia/en/8/8f/Nisargadatta.jpg",
-    "Adi Shankaracharya": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Adi_Shankaracharya.jpg/800px-Adi_Shankaracharya.jpg",
-    "Rumi": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Mevlana_Rumi.jpg/800px-Mevlana_Rumi.jpg",
-    "Sai Baba of Shirdi": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Sai_Baba_of_Shirdi_-_enhanced.jpg/800px-Sai_Baba_of_Shirdi_-_enhanced.jpg",
-    "Kabir": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Kabir.jpg/800px-Kabir.jpg",
-    "Guru Nanak": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Guru_Nanak_Dev_Ji.jpg/800px-Guru_Nanak_Dev_Ji.jpg",
-    "J. Krishnamurti": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jiddu_Krishnamurti_in_1920s.jpg/800px-Jiddu_Krishnamurti_in_1920s.jpg"
-}
+# --- DATABASES & HELPERS ---
 PLACEHOLDER_IMAGE = "https://static.thenounproject.com/png/1230421-200.png"
 
-# --- HELPER FUNCTIONS ---
 def call_gemini(prompt, history=None):
     try:
         model = genai.GenerativeModel(model_name='gemini-1.5-pro-latest', system_instruction=system_instruction)
@@ -94,82 +83,105 @@ def parse_list(text):
 def parse_teachings(text):
     if not text: return {}
     sections = {}
-    parts = re.split(r'###\s*(Core Philosophical Concepts|The Prescribed Method or Practice|Reference to Key Texts)', text)
+    # Use a more generic regex to find markdown headings, as they will be translated
+    parts = re.split(r'###\s*(.*)', text)
     if len(parts) > 1:
-        for i in range(1, len(parts), 2):
-            heading, content = parts[i].strip(), parts[i+1].strip()
-            if "Concepts" in heading: sections["concepts"] = content
-            elif "Method" in heading: sections["method"] = content
-            elif "Texts" in heading: sections["texts"] = content
+        # This parsing is simplified and assumes 3 sections.
+        # It takes content between headings.
+        # A more robust solution might be needed if AI formatting varies widely.
+        try:
+            sections["concepts"] = parts[2].strip()
+            sections["method"] = parts[4].strip()
+            sections["texts"] = parts[6].strip()
+        except IndexError:
+            # Fallback if the AI doesn't return exactly 3 sections
+            sections["concepts"] = text 
+    else:
+        sections["concepts"] = text # Fallback for non-structured text
     return sections
 
-def find_master_image_url(master_name_from_ai):
-    master_name_lower = master_name_from_ai.lower()
-    for known_name, url in MASTER_IMAGES.items():
-        keywords = known_name.lower().replace("sri", "").replace("maharaj", "").replace("of shirdi","").split()
-        if all(keyword in master_name_lower for keyword in keywords):
-            return url
-    return PLACEHOLDER_IMAGE
+def find_master_image_url(master_name):
+    if 'image_cache' not in st.session_state:
+        st.session_state.image_cache = {}
+    if master_name in st.session_state.image_cache:
+        return st.session_state.image_cache[master_name]
+    
+    with st.spinner(f"Finding image for {master_name}..."):
+        prompt = f"Find a publicly available, direct image link for the spiritual master '{master_name}'. The URL must end in .jpg, .jpeg, or .png. A good source is Wikimedia Commons. If you cannot find a link, respond with ONLY the word 'None'."
+        url_response, _ = call_gemini(prompt)
+        if url_response and url_response.strip().lower().startswith('http'):
+            image_url = url_response.strip()
+        else:
+            image_url = PLACEHOLDER_IMAGE
+        st.session_state.image_cache[master_name] = image_url
+        return image_url
 
 # --- SESSION STATE INITIALIZATION ---
 if 'stage' not in st.session_state:
     st.session_state.stage = "start"
+if 'language' not in st.session_state:
+    st.session_state.language = "English" # Default language
 
 def restart_app():
+    # Preserve language choice on restart
+    lang = st.session_state.language
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.session_state.stage = "start"
+    st.session_state.language = lang
+
+# --- LOCALIZATION DICTIONARY ---
+# For UI elements not generated by the AI
+L10N = {
+    "English": {
+        "title": "Spiritual Navigator",
+        "caption": "An interactive guide to ancient wisdom on modern emotions.",
+        "input_prompt": "Enter an emotion, tendency, or 'vritti' to begin:",
+        "start_over": "Start Over",
+        # ... add all other UI text here
+    },
+    "Gujarati": {
+        "title": "આધ્યાત્મિક માર્ગદર્શક",
+        "caption": "આધુનિક લાગણીઓ પર પ્રાચીન જ્ઞાન માટેની એક ઇન્ટરેક્ટિવ માર્ગદર્શિકા.",
+        "input_prompt": "શરૂ કરવા માટે લાગણી, વૃત્તિ અથવા 'વૃત્તિ' દાખલ કરો:",
+        "start_over": "ફરીથી શરૂ કરો",
+        # ... add all other UI text here
+    },
+    # Add other languages here
+}
 
 # --- MAIN APP UI ---
 st.title("🧘 Spiritual Navigator")
 load_custom_css()
-st.caption("An interactive guide to ancient wisdom on modern emotions.")
+st.caption(L10N[st.session_state.language]["caption"])
 
 if st.session_state.stage == "start":
-    vritti_input = st.text_input("Enter an emotion, tendency, or 'vritti' to begin:", key="vritti_input")
+    # --- NEW: Language Selection ---
+    lang_options = list(L10N.keys())
+    st.session_state.language = st.selectbox(
+        "Choose your language / તમારી ભાષા પસંદ કરો:",
+        options=lang_options,
+        index=lang_options.index(st.session_state.language) # Set default
+    )
+
+    vritti_input = st.text_input(L10N[st.session_state.language]["input_prompt"], key="vritti_input")
     if vritti_input:
         restart_app()
         st.session_state.vritti = vritti_input
-        st.session_state.stage = "show_traditions"
-        st.rerun()
-
-elif st.session_state.stage == "show_traditions":
-    st.subheader(f"Exploring: {st.session_state.vritti.capitalize()}")
-    if 'traditions' not in st.session_state:
-        with st.spinner("Consulting the world's wisdom traditions..."):
-            # --- MODIFIED: Added Featured Masters to the prompt for better context ---
-            featured_masters_str = ", ".join(["Sai Baba of Shirdi", "J. Krishnamurti", "Kabir", "Guru Nanak"])
-            prompt = f"For the emotion '{st.session_state.vritti}', list broad spiritual/religious Traditions. Include relevant traditions for masters like {featured_masters_str}. Use umbrella terms like 'Indic Traditions (Hinduism)', 'Sikhism', 'Sufism', 'Bhakti Movement', etc."
-            response_text, history = call_gemini(prompt)
-            if response_text:
-                st.session_state.traditions = parse_list(response_text)
-                st.session_state.chat_history = history
-    
-    st.write("First, choose a broad tradition:")
-    st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    for i, tradition in enumerate(st.session_state.get('traditions', [])):
-        if st.button(tradition, key=f"tradition_{i}"):
-            st.session_state.chosen_tradition = tradition
-            st.session_state.stage = "show_lineages"
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.divider()
-    if st.button("Start Over"):
-        restart_app()
+        st.session_state.stage = "show_lineages"
         st.rerun()
 
 elif st.session_state.stage == "show_lineages":
-    st.subheader(f"Tradition: {st.session_state.chosen_tradition}")
+    st.subheader(f"Exploring: {st.session_state.vritti.capitalize()}")
     if 'lineages' not in st.session_state:
-        with st.spinner(f"Finding schools within {st.session_state.chosen_tradition}..."):
-            prompt = f"Within the tradition of **{st.session_state.chosen_tradition}**, list specific Schools, Philosophies, or Lineages that have teachings on '{st.session_state.vritti}'."
-            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+        with st.spinner("Consulting the ancient traditions..."):
+            prompt = f"Respond in {st.session_state.language}. Give me a list of spiritual lineages that talk about {st.session_state.vritti}."
+            response_text, history = call_gemini(prompt)
             if response_text:
                 st.session_state.lineages = parse_list(response_text)
                 st.session_state.chat_history = history
     
-    st.write("Next, choose a specific school or lineage:")
+    st.write("Choose a path to explore further:")
     st.markdown('<div class="button-container">', unsafe_allow_html=True)
     for i, lineage in enumerate(st.session_state.get('lineages', [])):
         if st.button(lineage, key=f"lineage_{i}"):
@@ -178,19 +190,17 @@ elif st.session_state.stage == "show_lineages":
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
     st.divider()
-    if st.button("Back to Traditions"):
-        st.session_state.stage = "show_traditions"
-        keys_to_clear = ['lineages', 'masters', 'chosen_tradition']
-        for key in keys_to_clear:
-            if key in st.session_state: del st.session_state[key]
+    if st.button(L10N[st.session_state.language]["start_over"]):
+        restart_app()
         st.rerun()
 
 elif st.session_state.stage == "show_masters":
-    st.subheader(f"School: {st.session_state.chosen_lineage}")
+    st.subheader(f"Path: {st.session_state.chosen_lineage}")
     if 'masters' not in st.session_state:
         with st.spinner(f"Finding masters..."):
-            prompt = f"List masters from the {st.session_state.chosen_lineage} school of thought who discussed {st.session_state.vritti}."
+            prompt = f"Respond in {st.session_state.language}. List masters from the {st.session_state.chosen_lineage} lineage who discussed {st.session_state.vritti}."
             response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            st.session_state.raw_response = response_text
             if response_text:
                 st.session_state.masters = parse_list(response_text)
                 st.session_state.chat_history = history
@@ -209,87 +219,44 @@ elif st.session_state.stage == "show_masters":
                     st.session_state.chosen_master = master
                     st.session_state.stage = "show_teachings"
                     st.rerun()
-    
     st.divider()
-    if st.button("Back to Schools/Lineages"):
+    if st.button("Go Back to Lineages"):
         st.session_state.stage = "show_lineages"
         if 'masters' in st.session_state: del st.session_state['masters']
         st.rerun()
 
 elif st.session_state.stage == "show_teachings":
     st.subheader(f"Teachings of {st.session_state.chosen_master}")
-    st.caption(f"From the **{st.session_state.chosen_lineage}** perspective.")
+    st.caption(f"On **{st.session_state.vritti.capitalize()}** from the **{st.session_state.chosen_lineage}** perspective.")
     if 'teachings' not in st.session_state:
         with st.spinner("Distilling the wisdom..."):
-            prompt = f"What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}?"
-            response_text, _ = call_gemini(prompt, st.session_state.chat_history)
+            prompt = f"Respond in {st.session_state.language}. What were {st.session_state.chosen_master}'s teachings on {st.session_state.vritti}? Structure the response with the markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts', translating those headings into {st.session_state.language}."
+            response_text, history = call_gemini(prompt, st.session_state.chat_history)
+            st.session_state.raw_response = response_text
             if response_text:
                 st.session_state.teachings = parse_teachings(response_text)
+                st.session_state.chat_history = history
+            else:
+                st.session_state.teachings = {}
     if st.session_state.get('teachings'):
-        tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
-        with tab1: st.markdown(st.session_state.teachings.get("concepts", "No information provided."))
-        with tab2: st.markdown(st.session_state.teachings.get("method", "No information provided."))
-        with tab3: st.markdown(st.session_state.teachings.get("texts", "No information provided."))
-        
-        st.divider()
-
-        # --- MODIFIED: "Discover More" and "Contemplate" now use auto-loading tabs ---
-        st.subheader("Discover More & Contemplate")
-        disc_tabs = st.tabs(["📚 Further Reading", "📍 Places to Visit", "🗓️ Annual Events", "🙏 Practice & Journal"])
-
-        with disc_tabs[0]: # Further Reading
-            if 'books' not in st.session_state:
-                with st.spinner("Finding relevant books..."):
-                    prompt = f"Suggest 2-3 books for understanding {st.session_state.chosen_master}'s core teachings on topics like {st.session_state.vritti}. For each book, provide the title, a one-sentence description, and a markdown link to search for it on Amazon.in."
-                    response, _ = call_gemini(prompt, st.session_state.chat_history)
-                    st.session_state.books = response or "None"
-            if "None" in st.session_state.books.strip():
-                st.info("No specific book recommendations were found.")
-            else:
-                st.markdown(st.session_state.books)
-        
-        with disc_tabs[1]: # Places to Visit
-            if 'places' not in st.session_state:
-                with st.spinner("Locating significant places..."):
-                    prompt = f"Is there a significant place to visit associated with {st.session_state.chosen_master}? If yes, provide a numbered list with the place name, a one-sentence description, and its location. If no significant place exists, respond with ONLY the word 'None'."
-                    response, _ = call_gemini(prompt, st.session_state.chat_history)
-                    st.session_state.places = response or "None"
-            if "None" in st.session_state.places.strip():
-                st.info(f"No specific places are associated with {st.session_state.chosen_master}.")
-            else:
-                st.markdown(st.session_state.places)
-
-        with disc_tabs[2]: # Annual Events
-            if 'events' not in st.session_state:
-                with st.spinner("Checking for annual events..."):
-                    prompt = f"Are there any special annual events or festivals associated with {st.session_state.chosen_master}? If yes, provide a numbered list with the event name, a brief description, and the typical time of year it occurs. If no regular events are associated, respond with ONLY the word 'None'."
-                    response, _ = call_gemini(prompt, st.session_state.chat_history)
-                    st.session_state.events = response or "None"
-            if "None" in st.session_state.events.strip():
-                st.info(f"No specific annual events are associated with {st.session_state.chosen_master}.")
-            else:
-                st.markdown(st.session_state.events)
-        
-        with disc_tabs[3]: # Practice & Journal
-            st.info("A practice to deepen your understanding.")
-            if 'practice_text' not in st.session_state:
-                with st.spinner("Generating a relevant practice..."):
-                    prompt = f"Based on the teachings of {st.session_state.chosen_master} regarding '{st.session_state.vritti}', generate a short, guided contemplative practice. Present it as 2-4 simple, actionable steps in a numbered list."
-                    response, _ = call_gemini(prompt)
-                    st.session_state.practice_text = response or "No practice could be generated."
-            st.markdown(st.session_state.practice_text)
-            st.text_area("Your Contemplation Journal:", height=150, key="journal_entry", help="Entries are for this session only.")
-
+        # Since headings are now translated, we use the values from the parsed dict
+        headings = list(st.session_state.teachings.keys())
+        tab_objects = st.tabs([f"**{h.replace('_', ' ').title()}**" for h in headings])
+        for tab, content_key in zip(tab_objects, headings):
+            with tab:
+                st.markdown(st.session_state.teachings.get(content_key, "No information provided."))
     else:
-        st.warning("Could not parse the teachings for this master.")
+        st.warning("The AI's response could not be parsed into the teaching tabs.")
+        with st.expander("Show Raw AI Response"):
+            st.code(st.session_state.get('raw_response', "No response was received."))
     
     st.markdown("---")
-    if st.button("Back to previous page"):
-        if st.session_state.get('chosen_lineage') == "their unique teachings":
-            st.session_state.stage = "show_traditions"
-        else:
-            st.session_state.stage = "show_masters"
-        keys_to_clear = ['teachings', 'books', 'places', 'events', 'practice_text', 'chosen_master']
+    if st.button("Back to Masters List"):
+        st.session_state.stage = "show_masters"
+        keys_to_clear = ['teachings', 'raw_response']
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
+        st.rerun()
+    if st.button(L10N[st.session_state.language]["start_over"]):
+        restart_app()
         st.rerun()
