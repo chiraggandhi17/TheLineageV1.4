@@ -255,20 +255,54 @@ elif st.session_state.stage == "show_teachings":
         with tab3: st.markdown(st.session_state.teachings.get("texts", "No information provided."))
         
         st.divider()
-        st.subheader("Contemplate")
-        st.info("A practice to deepen your understanding.")
-        if 'practice_text' not in st.session_state:
-            with st.spinner("Generating a relevant practice..."):
-                # --- MODIFIED: Prompt for a more authentic and diverse practice ---
-                prompt = f"Based on the core teachings of {st.session_state.chosen_master} from the {st.session_state.chosen_summary['lineage']} tradition, suggest a simple, actionable practice to help a user work with the emotion of '{st.session_state.chosen_emotion}'. The practice must be authentic to that specific tradition. For example, for a Bhakti master, it might be a devotional act like chanting. For a Karma Yoga teaching, it might be an act of selfless service. For an introspective master, it might be a meditation. Present the suggestion as a few clear, actionable steps. After the steps, if relevant, suggest a soothing bhajan, chant, or hymn with a YouTube search link."
-                st.session_state.practice_text = call_gemini(prompt) or "No practice could be generated."
-        st.markdown(st.session_state.practice_text)
-        st.text_area("Your Contemplation Journal:", height=150, key="journal_entry", help="Entries are for this session only.")
+
+        # --- FEATURE RESTORED: "Discover More" and "Contemplate" Tabs ---
+        st.subheader("Discover More & Contemplate")
+        disc_tabs = st.tabs(["📚 Further Reading", "📍 Places to Visit", "🗓️ Annual Events", "🙏 Practice & Journal"])
+
+        with disc_tabs[0]:
+            if 'books' not in st.session_state:
+                with st.spinner("Finding relevant books..."):
+                    prompt = f"Suggest 2-3 books for understanding {st.session_state.chosen_master}'s core teachings on topics like {st.session_state.chosen_emotion}. Respond with a markdown table with columns: Book, Description, and Link (to search on Amazon.in)."
+                    st.session_state.books = call_gemini(prompt) or "None"
+            if "None" in st.session_state.books:
+                st.info("No specific book recommendations were found.")
+            else:
+                st.markdown(st.session_state.books)
+        
+        with disc_tabs[1]:
+            if 'places' not in st.session_state:
+                with st.spinner("Locating significant places..."):
+                    prompt = f"Is there a significant place to visit associated with {st.session_state.chosen_master}? Respond with a markdown table with columns: Place, Description, and Location. If no significant place exists, respond with ONLY the word 'None'."
+                    st.session_state.places = call_gemini(prompt) or "None"
+            if "None" in st.session_state.places:
+                st.info(f"No specific places are associated with {st.session_state.chosen_master}.")
+            else:
+                st.markdown(st.session_state.places)
+
+        with disc_tabs[2]:
+            if 'events' not in st.session_state:
+                with st.spinner("Checking for annual events..."):
+                    prompt = f"Are there any special annual events or festivals associated with {st.session_state.chosen_master}? Respond with a markdown table with columns: Event, Description, and 'Time of Year'. If no regular events are associated, respond with ONLY the word 'None'."
+                    st.session_state.events = call_gemini(prompt) or "None"
+            if "None" in st.session_state.events:
+                st.info(f"No specific annual events are associated with {st.session_state.chosen_master}.")
+            else:
+                st.markdown(st.session_state.events)
+        
+        with disc_tabs[3]:
+            st.info("A practice to deepen your understanding.")
+            if 'practice_text' not in st.session_state:
+                with st.spinner("Generating a relevant practice..."):
+                    prompt = f"Based on the teachings of {st.session_state.chosen_master} from the {st.session_state.chosen_summary['lineage']} tradition, suggest a simple, actionable practice to help a user work with the emotion of '{st.session_state.chosen_emotion}'. The practice must be authentic to that specific tradition. For example, for a Bhakti master, it might be a devotional act. For a Karma Yoga teaching, an act of selfless service. For an introspective master, a meditation. Present the suggestion as a few clear, actionable steps. After the steps, if relevant, suggest a soothing bhajan, chant, or hymn with a YouTube search link."
+                    st.session_state.practice_text = call_gemini(prompt) or "No practice could be generated."
+            st.markdown(st.session_state.practice_text)
+            st.text_area("Your Contemplation Journal:", height=150, key="journal_entry", help="Entries are for this session only.")
     
     st.divider()
     if st.button("Back to Masters List"):
         st.session_state.stage = "show_masters"
-        keys_to_clear = ['teachings', 'practice_text']
+        keys_to_clear = ['teachings', 'books', 'places', 'events', 'practice_text']
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
