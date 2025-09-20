@@ -157,12 +157,13 @@ elif st.session_state.stage == "show_summaries":
             if response_text:
                 st.session_state.summaries = parse_summaries(response_text)
     
-    st.write("Choose the teaching summary that resonates with you most:")
+    st.write("Choose the teaching that resonates with you most:")
     for i, item in enumerate(st.session_state.get('summaries', [])):
         with st.container():
+            # --- MODIFIED: Display only the summary, not the lineage name ---
             st.markdown(f"<div class='summary-container'><p class='summary-text'>“{item['summary']}”</p>", unsafe_allow_html=True)
-            if st.button(f"Explore the {item['lineage']} perspective", key=f"summary_{i}", use_container_width=True):
-                st.session_state.chosen_lineage = item['lineage']
+            if st.button(f"Explore this perspective", key=f"summary_{i}", use_container_width=True):
+                st.session_state.chosen_summary = item # Store the whole item (lineage + summary)
                 st.session_state.stage = "show_masters"
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
@@ -187,10 +188,14 @@ elif st.session_state.stage == "show_summaries":
         st.rerun()
 
 elif st.session_state.stage == "show_masters":
-    st.subheader(f"Exploring the {st.session_state.chosen_lineage} Lineage")
+    # --- MODIFIED: Reveal the lineage name here ---
+    lineage = st.session_state.chosen_summary['lineage']
+    st.subheader(f"This wisdom is from the {lineage} tradition")
+    st.caption(f"Let's explore some of its masters.")
+    
     if 'masters' not in st.session_state:
-        with st.spinner(f"Finding masters from the {st.session_state.chosen_lineage} lineage..."):
-            prompt = f"List 5 key masters from the '{st.session_state.chosen_lineage}' lineage who have teachings relevant to '{st.session_state.chosen_emotion}'."
+        with st.spinner(f"Finding masters from the {lineage} lineage..."):
+            prompt = f"List 5 key masters from the '{lineage}' lineage who have teachings relevant to '{st.session_state.chosen_emotion}'."
             response_text = call_gemini(prompt)
             if response_text:
                 st.session_state.masters = parse_list(response_text)
@@ -208,7 +213,7 @@ elif st.session_state.stage == "show_masters":
     if st.button("Explore More Masters"):
         with st.spinner("Finding more masters..."):
             existing_masters = st.session_state.get('masters', [])
-            prompt = f"List 5 more masters from the '{st.session_state.chosen_lineage}' lineage, excluding: {', '.join(existing_masters)}."
+            prompt = f"List 5 more masters from the '{lineage}' lineage, excluding: {', '.join(existing_masters)}."
             response_text = call_gemini(prompt)
             if response_text:
                 new_masters = parse_list(response_text)
@@ -225,7 +230,7 @@ elif st.session_state.stage == "show_masters":
 
 elif st.session_state.stage == "show_teachings":
     st.subheader(f"Teachings of {st.session_state.chosen_master}")
-    st.caption(f"From the **{st.session_state.chosen_lineage}** perspective on **{st.session_state.chosen_emotion}**.")
+    st.caption(f"From the **{st.session_state.chosen_summary['lineage']}** perspective on **{st.session_state.chosen_emotion}**.")
     if 'teachings' not in st.session_state:
         with st.spinner("Distilling the wisdom..."):
             prompt = f"What were {st.session_state.chosen_master}'s core teachings regarding {st.session_state.chosen_emotion}? Structure the response with markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts'."
