@@ -61,16 +61,8 @@ When asked for book recommendations, respond with a markdown table with columns:
 When asked to generate a contemplative practice, present it as a series of simple, actionable steps. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it.
 """
 
-# --- NEW: Nature Gateway Database ---
-NATURE_ELEMENTS = [
-    {"name": "Thunder", "image": "https://images.unsplash.com/photo-1605727228956-2736e8342242?q=80&w=1000&auto=format&fit=crop"},
-    {"name": "Waterfall", "image": "https://images.unsplash.com/photo-1547005380-61fec8f86a59?q=80&w=1000&auto=format&fit=crop"},
-    {"name": "Rain", "image": "https://images.unsplash.com/photo-1519692933481-e14e24672b14?q=80&w=1000&auto=format&fit=crop"},
-    {"name": "Ocean Waves", "image": "https://images.unsplash.com/photo-1589279756961-689334ac1a73?q=80&w=1000&auto=format&fit=crop"},
-    {"name": "Desert", "image": "https://images.unsplash.com/photo-1473580044384-7ba9967e16a0?q=80&w=1000&auto=format&fit=crop"},
-    {"name": "Forest", "image": "https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=1000&auto=format&fit=crop"},
-]
-PLACEHOLDER_IMAGE = "https://static.thenounproject.com/png/1230421-200.png"
+# --- UI MODIFICATION: Nature elements list (no images needed) ---
+NATURE_ELEMENTS = ["Thunder", "Waterfall", "Rain", "Ocean Waves", "Desert", "Forest", "Mountain", "Sunrise"]
 
 # --- HELPER FUNCTIONS ---
 def call_gemini(prompt):
@@ -107,10 +99,6 @@ def parse_teachings(text):
             elif "Texts" in heading: sections["texts"] = content
     return sections
 
-def find_master_image_url(master_name):
-    # This can be expanded with a proper image database if desired
-    return PLACEHOLDER_IMAGE
-
 # --- SESSION STATE INITIALIZATION ---
 if 'stage' not in st.session_state:
     st.session_state.stage = "start"
@@ -127,15 +115,15 @@ load_custom_css()
 if st.session_state.stage == "start":
     st.caption("Let nature be your guide. Choose an element to begin exploring your inner world.")
     
-    num_columns = 3
-    cols = st.columns(num_columns)
+    # --- UI MODIFICATION: Use buttons in a container instead of images ---
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
     for i, element in enumerate(NATURE_ELEMENTS):
-        with cols[i % num_columns]:
-            st.image(element["image"])
-            if st.button(element["name"], key=f"nature_{i}", use_container_width=True):
-                st.session_state.chosen_nature = element["name"]
-                st.session_state.stage = "show_emotions"
-                st.rerun()
+        if st.button(element, key=f"nature_{i}"):
+            st.session_state.chosen_nature = element
+            st.session_state.stage = "show_emotions"
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 elif st.session_state.stage == "show_emotions":
     st.subheader(f"Reflecting on: {st.session_state.chosen_nature}")
@@ -195,12 +183,10 @@ elif st.session_state.stage == "show_masters":
                 st.session_state.masters = parse_list(response_text)
 
     st.write("Choose a master to learn from:")
+    # --- UI MODIFICATION: Use simple containers instead of image columns ---
     for i, master in enumerate(st.session_state.get('masters', [])):
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            st.image(PLACEHOLDER_IMAGE, width=70) # Using placeholder as image finding is complex
-        with col2:
-            st.write(f"**{master}**")
+        with st.container():
+            st.markdown(f"**{master}**")
             if st.button(f"Dive into teachings", key=f"master_{i}", use_container_width=True):
                 st.session_state.chosen_master = master
                 st.session_state.stage = "show_teachings"
@@ -210,7 +196,6 @@ elif st.session_state.stage == "show_masters":
         st.session_state.stage = "show_quotes"
         if 'masters' in st.session_state: del st.session_state['masters']
         st.rerun()
-
 
 elif st.session_state.stage == "show_teachings":
     st.subheader(f"Teachings of {st.session_state.chosen_master}")
@@ -232,8 +217,7 @@ elif st.session_state.stage == "show_teachings":
         st.subheader("Discover More & Contemplate")
         disc_tabs = st.tabs(["📚 Further Reading", "📍 Places to Visit", "🙏 Practice & Journal"])
         
-        with disc_tabs[0]: # Further Reading
-             # Auto-loading content
+        with disc_tabs[0]:
             if 'books' not in st.session_state:
                 with st.spinner("Finding relevant books..."):
                     prompt = f"Suggest 2-3 books for understanding {st.session_state.chosen_master}'s core teachings on topics like {st.session_state.chosen_emotion}. Respond with a markdown table with columns: Book, Description, and Link (to search on Amazon.in)."
@@ -243,7 +227,7 @@ elif st.session_state.stage == "show_teachings":
             else:
                 st.markdown(st.session_state.books)
         
-        with disc_tabs[1]: # Places to Visit
+        with disc_tabs[1]:
             if 'places' not in st.session_state:
                 with st.spinner("Locating significant places..."):
                     prompt = f"Is there a significant place to visit associated with {st.session_state.chosen_master}? Respond with a markdown table with columns: Place, Description, and Location. If no significant place exists, respond with ONLY the word 'None'."
@@ -253,7 +237,7 @@ elif st.session_state.stage == "show_teachings":
             else:
                 st.markdown(st.session_state.places)
 
-        with disc_tabs[2]: # Practice & Journal
+        with disc_tabs[2]:
             st.info("A practice to deepen your understanding.")
             if 'practice_text' not in st.session_state:
                 with st.spinner("Generating a relevant practice..."):
