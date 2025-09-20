@@ -27,6 +27,12 @@ def load_custom_css():
             }
             body, .stApp { background-color: var(--background-color); }
             h1, h2, h3 { font-family: var(--font); }
+            
+            /* --- MODIFIED: Reduce title font size --- */
+            h1 {
+                font-size: 2.5rem !important;
+            }
+
             .stTabs [data-baseweb="tab"][aria-selected="true"] {
                 background-color: transparent;
                 color: var(--primary-color);
@@ -56,13 +62,16 @@ You are the 'Spiritual Navigator', a specialized AI guide.
 CRITICAL RULE: All lists you generate MUST be in a numbered list format.
 When asked for teaching summaries, you must respond in the format: "1. **Lineage Name:** A concise, one-sentence summary of the lineage's core teaching on the topic."
 When providing detailed teachings, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
+When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
+When asked for book recommendations, respond with a markdown table with columns: Book, Description, and Link (to search on Amazon.in).
+When asked to generate a contemplative practice, present it as a series of simple, actionable steps. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it.
 """
 
 # --- Nature Elements ---
 NATURE_ELEMENTS = {
-    "Expansive & Vast": ["Deep Ocean", "Vast Desert", "Starry Night Sky", "Silent Mountain"],
-    "Dynamic & Powerful": ["Roaring Waterfall", "Rolling Thunder", "Crashing Ocean Waves", "Wildfire"],
-    "Gentle & Nurturing": ["Gentle Rain", "Flowing River", "Lush Forest", "Warm Sunrise"]
+    "🌌 Expansive & Vast": ["Deep Ocean", "Vast Desert", "Starry Night Sky", "Silent Mountain"],
+    "⚡ Dynamic & Powerful": ["Roaring Waterfall", "Rolling Thunder", "Crashing Ocean Waves", "Wildfire"],
+    "🌿 Gentle & Nurturing": ["Gentle Rain", "Flowing River", "Lush Forest", "Warm Sunrise"]
 }
 
 # --- HELPER FUNCTIONS ---
@@ -110,11 +119,15 @@ def restart_app():
     st.session_state.stage = "start"
 
 # --- MAIN APP UI ---
-st.title("🧘 Spiritual Navigator")
+st.title("Spiritual Navigator")
 load_custom_css()
 
 if st.session_state.stage == "start":
-    st.caption("Let nature be your guide. Choose an element that reflects your inner state.")
+    # --- MODIFIED: Caption is now a more visible subheader ---
+    st.subheader("Let nature be your guide.")
+    st.write("Choose an element below that reflects your inner state to begin.")
+    
+    # --- MODIFIED: Categories now include emojis ---
     for category, elements in NATURE_ELEMENTS.items():
         st.subheader(category)
         cols = st.columns(4)
@@ -160,10 +173,9 @@ elif st.session_state.stage == "show_summaries":
     st.write("Choose the teaching that resonates with you most:")
     for i, item in enumerate(st.session_state.get('summaries', [])):
         with st.container():
-            # --- MODIFIED: Display only the summary, not the lineage name ---
             st.markdown(f"<div class='summary-container'><p class='summary-text'>“{item['summary']}”</p>", unsafe_allow_html=True)
             if st.button(f"Explore this perspective", key=f"summary_{i}", use_container_width=True):
-                st.session_state.chosen_summary = item # Store the whole item (lineage + summary)
+                st.session_state.chosen_summary = item
                 st.session_state.stage = "show_masters"
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
@@ -188,7 +200,6 @@ elif st.session_state.stage == "show_summaries":
         st.rerun()
 
 elif st.session_state.stage == "show_masters":
-    # --- MODIFIED: Reveal the lineage name here ---
     lineage = st.session_state.chosen_summary['lineage']
     st.subheader(f"This wisdom is from the {lineage} tradition")
     st.caption(f"Let's explore some of its masters.")
