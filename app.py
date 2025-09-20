@@ -61,8 +61,12 @@ When asked for book recommendations, respond with a markdown table with columns:
 When asked to generate a contemplative practice, present it as a series of simple, actionable steps. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it.
 """
 
-# --- UI MODIFICATION: Nature elements list (no images needed) ---
-NATURE_ELEMENTS = ["Thunder", "Waterfall", "Rain", "Ocean Waves", "Desert", "Forest", "Mountain", "Sunrise"]
+# --- NEW: Refined list of nature attributes ---
+NATURE_ELEMENTS = {
+    "Expansive & Vast": ["Deep Ocean", "Vast Desert", "Starry Night Sky", "Silent Mountain"],
+    "Dynamic & Powerful": ["Roaring Waterfall", "Rolling Thunder", "Crashing Ocean Waves", "Wildfire"],
+    "Gentle & Nurturing": ["Gentle Rain", "Flowing River", "Lush Forest", "Warm Sunrise"]
+}
 
 # --- HELPER FUNCTIONS ---
 def call_gemini(prompt):
@@ -113,17 +117,19 @@ st.title("🧘 Spiritual Navigator")
 load_custom_css()
 
 if st.session_state.stage == "start":
-    st.caption("Let nature be your guide. Choose an element to begin exploring your inner world.")
+    st.caption("Let nature be your guide. Choose an element that reflects your inner state.")
     
-    # --- UI MODIFICATION: Use buttons in a container instead of images ---
-    st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    for i, element in enumerate(NATURE_ELEMENTS):
-        if st.button(element, key=f"nature_{i}"):
-            st.session_state.chosen_nature = element
-            st.session_state.stage = "show_emotions"
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
+    # --- UI MODIFICATION: Use a categorized grid layout ---
+    for category, elements in NATURE_ELEMENTS.items():
+        st.subheader(category)
+        cols = st.columns(4)
+        for i, element in enumerate(elements):
+            with cols[i % 4]:
+                if st.button(element, key=f"nature_{element}", use_container_width=True):
+                    st.session_state.chosen_nature = element
+                    st.session_state.stage = "show_emotions"
+                    st.rerun()
+        st.divider()
 
 elif st.session_state.stage == "show_emotions":
     st.subheader(f"Reflecting on: {st.session_state.chosen_nature}")
@@ -160,7 +166,7 @@ elif st.session_state.stage == "show_quotes":
     for i, item in enumerate(st.session_state.get('quotes', [])):
         with st.container():
             st.markdown(f"<div class='quote-container'><p class='quote-text'>“{item['quote']}”</p>", unsafe_allow_html=True)
-            if st.button(f"Explore the teachings of {item['master']}", key=f"quote_{i}", use_container_width=True):
+            if st.button(f"Explore this teaching", key=f"quote_{i}", use_container_width=True):
                 st.session_state.chosen_quote = item
                 st.session_state.stage = "show_masters"
                 st.rerun()
@@ -174,20 +180,20 @@ elif st.session_state.stage == "show_quotes":
 
 elif st.session_state.stage == "show_masters":
     lineage = st.session_state.chosen_quote['lineage']
-    st.subheader(f"Exploring the {lineage} Lineage")
+    st.subheader(f"This wisdom is from **{st.session_state.chosen_quote['master']}**")
+    st.caption(f"Let's explore the **{lineage}** lineage.")
     if 'masters' not in st.session_state:
-        with st.spinner(f"Finding masters from the {lineage} lineage..."):
+        with st.spinner(f"Finding other masters from the {lineage} lineage..."):
             prompt = f"List 5 key masters from the '{lineage}' lineage who have teachings relevant to '{st.session_state.chosen_emotion}'. Include the master from the original quote: {st.session_state.chosen_quote['master']}."
             response_text = call_gemini(prompt)
             if response_text:
                 st.session_state.masters = parse_list(response_text)
 
     st.write("Choose a master to learn from:")
-    # --- UI MODIFICATION: Use simple containers instead of image columns ---
     for i, master in enumerate(st.session_state.get('masters', [])):
         with st.container():
             st.markdown(f"**{master}**")
-            if st.button(f"Dive into teachings", key=f"master_{i}", use_container_width=True):
+            if st.button(f"Dive into the teachings of {master}", key=f"master_{i}", use_container_width=True):
                 st.session_state.chosen_master = master
                 st.session_state.stage = "show_teachings"
                 st.rerun()
