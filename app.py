@@ -69,9 +69,9 @@ INDEPENDENT_MASTERS = ["Sai Baba of Shirdi", "J. Krishnamurti", "Kabir", "Guru N
 def call_gemini(prompt, history=None):
     try:
         model = genai.GenerativeModel(
-    model_name='gemini-1.5-pro',
-    system_instruction=system_instruction
-)
+            model_name='gemini-pro',
+            system_instruction=system_instruction
+        )
         chat = model.start_chat(history=history or [])
         response = chat.send_message(prompt)
         return response.text, chat.history
