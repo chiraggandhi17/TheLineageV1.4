@@ -10,31 +10,59 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- THEME & STYLING ---
+# --- THEME & STYLING (Corrected Version) ---
 def load_custom_css():
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
+            
             :root {
-                --primary-color: #4A909A;
-                --background-color: #F0F2F6;
-                --secondary-background-color: #FFFFFF;
-                --text-color: #31333F;
+                --primary-color: #4A909A; /* Muted Teal */
+                --background-color: #F0F2F6; /* Soft Off-White */
+                --secondary-background-color: #FFFFFF; /* Pure White for cards */
+                --text-color: #31333F; /* Dark Charcoal */
                 --font: 'Lato', sans-serif;
             }
+
+            /* Force base colors */
             .stApp, .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp li, .stApp label, .stApp .stMarkdown {
                 color: var(--text-color) !important;
             }
-            body, .stApp { background-color: var(--background-color); }
-            h1, h2, h3 { font-family: var(--font); }
+            body, .stApp { 
+                background-color: var(--background-color); 
+            }
+            h1, h2, h3 { 
+                font-family: var(--font); 
+            }
+
+            /* Style tabs */
             .stTabs [data-baseweb="tab"][aria-selected="true"] {
                 background-color: transparent;
                 color: var(--primary-color);
                 border-bottom: 2px solid var(--primary-color);
             }
+
+            /* Style all buttons */
+            .stButton>button { 
+                border-radius: 20px; 
+                border: 1px solid var(--primary-color); 
+                color: var(--primary-color); 
+                background-color: var(--secondary-background-color);
+                transition: all 0.3s ease-in-out; 
+                padding: 5px 15px; 
+            }
+            .stButton>button:hover { 
+                color: var(--secondary-background-color); 
+                background-color: var(--primary-color); 
+            }
+
+            /* Style containers/cards */
             .st-emotion-cache-1r6slb0, .st-emotion-cache-p5msec, .quote-container, .lineage-card { 
-                border-radius: 10px; padding: 1.5rem; background-color: var(--secondary-background-color); 
-                box-shadow: 0 4px 8px rgba(0,0,0,0.08); margin-bottom: 1.5rem;
+                border-radius: 10px; 
+                padding: 1.5rem; 
+                background-color: var(--secondary-background-color); 
+                box-shadow: 0 4px 8px rgba(0,0,0,0.08); 
+                margin-bottom: 1.5rem;
             }
             .quote-text {
                 font-size: 1.2rem;
@@ -75,38 +103,26 @@ def parse_anonymous_teachings(text):
     if not text: return []
     return re.findall(r'^\s*\d+\.\s*(.+)$', text, re.MULTILINE)
 
-# --- NEW: Advanced parsing for multiple lineages ---
 def parse_multi_lineage_and_masters(text):
     if not text: return []
-    
-    # Split the text into sections for each lineage
     lineage_sections = re.split(r'### Spiritual Lineage:', text, flags=re.IGNORECASE)
-    
     parsed_data = []
     
     for section in lineage_sections:
         if not section.strip(): continue
-        
-        # The lineage name is the first line of the section
         lines = section.strip().split('\n')
         lineage_name = lines[0].strip()
-        
         masters_list = []
-        
-        # Regex to find the master's name, which is often bolded or starts a line
         master_pattern = re.compile(r"^\s*[\*\-]\s*(?:\*\*)?([A-Z][A-Za-z\s\(\)-āī,.]+)(?:\*\*)?")
-        # Regex for details
         period_pattern = re.compile(r"Time Period:\s*(.*)", re.IGNORECASE)
         location_pattern = re.compile(r"Key Associated Location:\s*(.*)", re.IGNORECASE)
-        
         current_master = {}
+        
         for line in lines:
             line = line.strip()
             master_match = master_pattern.match(line)
-            
             if master_match:
-                if current_master: # Save the previously found master
-                    masters_list.append(current_master)
+                if current_master: masters_list.append(current_master)
                 current_master = {"name": master_match.group(1).strip()}
             else:
                 period_match = period_pattern.search(line)
@@ -115,13 +131,9 @@ def parse_multi_lineage_and_masters(text):
                     current_master["period"] = period_match.group(1).strip()
                 if location_match and current_master:
                     current_master["location"] = location_match.group(1).strip()
-        
-        if current_master: # Add the last master found
-            masters_list.append(current_master)
-            
+        if current_master: masters_list.append(current_master)
         if lineage_name and masters_list:
             parsed_data.append({"lineage": lineage_name, "masters": masters_list})
-            
     return parsed_data
 
 def parse_teachings(text):
@@ -201,7 +213,6 @@ elif st.session_state.stage == "show_lineage_reveal":
             st.session_state.raw_response_reveal = response
             if response:
                 st.session_state.revealed_data = parse_multi_lineage_and_masters(response)
-
     if not st.session_state.get('revealed_data'):
         st.warning("Could not parse the lineage from the AI's response.")
         with st.expander("Show Raw AI Response (for debugging)"):
@@ -220,7 +231,6 @@ elif st.session_state.stage == "show_lineage_reveal":
                         st.session_state.stage = "show_final_teachings"
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
-    
     if st.button("Back to Teachings"):
         st.session_state.stage = "show_anonymous_teachings"
         keys_to_clear = ['revealed_data', 'raw_response_reveal']
@@ -242,7 +252,6 @@ elif st.session_state.stage == "show_final_teachings":
         with tab1: st.markdown(st.session_state.final_teachings.get("concepts", "No information provided."))
         with tab2: st.markdown(st.session_state.final_teachings.get("method", "No information provided."))
         with tab3: st.markdown(st.session_state.final_teachings.get("texts", "No information provided."))
-    
     st.divider()
     if st.button("Back to Lineage Choice"):
         st.session_state.stage = "show_lineage_reveal"
