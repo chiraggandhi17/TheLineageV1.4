@@ -32,21 +32,9 @@ def load_custom_css():
                 color: var(--primary-color);
                 border-bottom: 2px solid var(--primary-color);
             }
-            .stButton>button { 
-                border-radius: 20px; 
-                border: 1px solid var(--primary-color); 
-                color: var(--primary-color); 
-                background-color: var(--secondary-background-color);
-                transition: all 0.3s ease-in-out; 
-                padding: 5px 15px; 
-            }
-            .stButton>button:hover { 
-                color: var(--secondary-background-color); 
-                background-color: var(--primary-color); 
-            }
-            .st-emotion-cache-1r6slb0, .st-emotion-cache-p5msec, .quote-container { 
+            .st-emotion-cache-1r6slb0, .st-emotion-cache-p5msec, .quote-container, .lineage-card { 
                 border-radius: 10px; padding: 1.5rem; background-color: var(--secondary-background-color); 
-                box-shadow: 0 4px 8px rgba(0,0,0,0.08); margin-bottom: 1rem;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.08); margin-bottom: 1.5rem;
             }
             .quote-text {
                 font-size: 1.2rem;
@@ -69,13 +57,8 @@ except (KeyError, FileNotFoundError):
 system_instruction = """
 You are the 'Spiritual Navigator', a specialized AI guide. 
 When asked for anonymous teachings, provide a numbered list of 5 brief, one-or-two sentence summaries of spiritual teachings. Do NOT name the master, school, or tradition.
-When asked to identify a teaching, respond with the name of the **Lineage**, followed by a numbered list of **Masters**. For each master, provide their name, their time period, and a key associated location. Format it like this:
-Lineage: Advaita Vedanta
-Masters:
-1. Adi Shankaracharya | 8th century CE | Kalady, Kerala
-2. Ramana Maharshi | 1879-1950 | Tiruvannamalai, Tamil Nadu
+When asked to identify a teaching, identify one or two of the most prominent spiritual lineages. For each, respond with a section starting with '### Spiritual Lineage: [Name]'. Follow this with a brief description, then a sub-section starting with '**Masters Associated with [Name]:**', followed by a bulleted list of masters. For each master, include their Time Period and Key Associated Location on new lines.
 When providing detailed teachings, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
-When asked for books, places, events, or music, if no relevant information exists, you must respond with ONLY the single word 'None'.
 """
 
 # --- HELPER FUNCTIONS ---
@@ -92,27 +75,54 @@ def parse_anonymous_teachings(text):
     if not text: return []
     return re.findall(r'^\s*\d+\.\s*(.+)$', text, re.MULTILINE)
 
-# --- FIX: More robust parsing for the master list ---
-def parse_lineage_and_masters(text):
-    if not text: return "Unknown Tradition", []
+# --- NEW: Advanced parsing for multiple lineages ---
+def parse_multi_lineage_and_masters(text):
+    if not text: return []
     
-    lineage_match = re.search(r"Lineage:\s*(.*)", text, re.IGNORECASE)
-    lineage = lineage_match.group(1).strip() if lineage_match else "Unknown Tradition"
+    # Split the text into sections for each lineage
+    lineage_sections = re.split(r'### Spiritual Lineage:', text, flags=re.IGNORECASE)
     
-    masters_text = text.split("Masters:")[1] if "Masters:" in text else text
-    masters_list = []
+    parsed_data = []
     
-    # Regex to find lines starting with a number, then capture 3 parts separated by '|'
-    pattern = re.compile(r"^\s*\d+\.\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$", re.MULTILINE)
-    matches = pattern.findall(masters_text)
-    
-    for match in matches:
-        masters_list.append({
-            "name": match[0].strip(),
-            "period": match[1].strip(),
-            "location": match[2].strip()
-        })
-    return lineage, masters_list
+    for section in lineage_sections:
+        if not section.strip(): continue
+        
+        # The lineage name is the first line of the section
+        lines = section.strip().split('\n')
+        lineage_name = lines[0].strip()
+        
+        masters_list = []
+        
+        # Regex to find the master's name, which is often bolded or starts a line
+        master_pattern = re.compile(r"^\s*[\*\-]\s*(?:\*\*)?([A-Z][A-Za-z\s\(\)-āī,.]+)(?:\*\*)?")
+        # Regex for details
+        period_pattern = re.compile(r"Time Period:\s*(.*)", re.IGNORECASE)
+        location_pattern = re.compile(r"Key Associated Location:\s*(.*)", re.IGNORECASE)
+        
+        current_master = {}
+        for line in lines:
+            line = line.strip()
+            master_match = master_pattern.match(line)
+            
+            if master_match:
+                if current_master: # Save the previously found master
+                    masters_list.append(current_master)
+                current_master = {"name": master_match.group(1).strip()}
+            else:
+                period_match = period_pattern.search(line)
+                location_match = location_pattern.search(line)
+                if period_match and current_master:
+                    current_master["period"] = period_match.group(1).strip()
+                if location_match and current_master:
+                    current_master["location"] = location_match.group(1).strip()
+        
+        if current_master: # Add the last master found
+            masters_list.append(current_master)
+            
+        if lineage_name and masters_list:
+            parsed_data.append({"lineage": lineage_name, "masters": masters_list})
+            
+    return parsed_data
 
 def parse_teachings(text):
     if not text: return {}
@@ -141,18 +151,15 @@ load_custom_css()
 if st.session_state.stage == "start":
     st.caption("An interactive guide to ancient wisdom on modern emotions.")
     st.session_state.vritti = st.text_input("To begin, what emotion or tendency are you exploring?", key="vritti_input")
-    
     st.write("---")
     st.subheader("Optional: Share your Guiding Principles")
     QUESTIONS = [
         {"question": "When facing a problem, I tend to:", "options": ["Analyze it logically.", "Feel my way through it intuitively.", "Seek guidance from wisdom texts.", "Take action and learn by doing."], "key": "q1"},
         {"question": "I feel most connected to the divine through:", "options": ["Silent contemplation.", "Devotional practices.", "Intellectual understanding.", "Service to others."], "key": "q2"},
-        {"question": "I prefer a path that is:", "options": ["Well-structured with clear steps.", "Fluid and adaptable.", "Focused on a single, ultimate truth.", "Embraces multiple perspectives."], "key": "q3"}
     ]
     answers = {}
     for q in QUESTIONS:
         answers[q['key']] = st.radio(q['question'], q['options'], key=q['key'], index=None)
-
     if st.button("Begin Exploration"):
         if st.session_state.vritti:
             summary = [answers[q['key']] for q in QUESTIONS if answers[q['key']]]
@@ -171,11 +178,8 @@ elif st.session_state.stage == "show_anonymous_teachings":
             st.session_state.raw_response = response
             if response:
                 st.session_state.teachings = parse_anonymous_teachings(response)
-
     if not st.session_state.get('teachings'):
         st.warning("Could not find specific teachings. Please try another emotion.")
-        with st.expander("Show Raw AI Response (for debugging)"):
-            st.code(st.session_state.get('raw_response', "No response from AI."))
     else:
         st.write("Choose the teaching that resonates with you most:")
         for i, teaching in enumerate(st.session_state.teachings):
@@ -183,7 +187,6 @@ elif st.session_state.stage == "show_anonymous_teachings":
                 st.session_state.chosen_teaching = teaching
                 st.session_state.stage = "show_lineage_reveal"
                 st.rerun()
-    
     st.divider()
     if st.button("Start Over"):
         restart_app()
@@ -191,38 +194,36 @@ elif st.session_state.stage == "show_anonymous_teachings":
 
 elif st.session_state.stage == "show_lineage_reveal":
     st.info(f"The teaching you chose resonates with:")
-    if 'revealed_lineage' not in st.session_state:
-        with st.spinner("Unveiling the tradition..."):
-            prompt = f"The user chose the teaching: '{st.session_state.chosen_teaching}'. Which spiritual lineage and which masters are associated with this teaching? For each master, provide their name, their time period, and a key associated location. Respond in the required format."
+    if 'revealed_data' not in st.session_state:
+        with st.spinner("Unveiling the tradition(s)..."):
+            prompt = f"The user chose this teaching about '{st.session_state.vritti}': '{st.session_state.chosen_teaching}'. Identify one or two of the most prominent spiritual lineages for this teaching. For each lineage, provide its name, a brief description, and a list of masters. Respond in the required format."
             response = call_gemini(prompt)
-            st.session_state.raw_response = response
+            st.session_state.raw_response_reveal = response
             if response:
-                lineage, masters = parse_lineage_and_masters(response)
-                st.session_state.revealed_lineage = lineage
-                st.session_state.masters_list = masters
+                st.session_state.revealed_data = parse_multi_lineage_and_masters(response)
 
-    st.header(st.session_state.get('revealed_lineage', 'Unknown Lineage'))
-    
-    if not st.session_state.get('masters_list'):
-        st.warning("Could not parse the list of masters from the AI's response.")
+    if not st.session_state.get('revealed_data'):
+        st.warning("Could not parse the lineage from the AI's response.")
         with st.expander("Show Raw AI Response (for debugging)"):
-            st.code(st.session_state.get('raw_response', "No response from AI."))
+            st.code(st.session_state.get('raw_response_reveal', "No response from AI."))
     else:
-        st.write("Choose a master to learn more:")
-        for i, master in enumerate(st.session_state.get('masters_list', [])):
+        st.write("You can explore the following path(s):")
+        for lineage_data in st.session_state.get('revealed_data', []):
             with st.container():
-                st.markdown(f"**{master['name']}**")
-                st.caption(f"{master['period']} | {master['location']}")
-                if st.button("Explore Teachings", key=f"master_{i}"):
-                    st.session_state.chosen_master = master['name']
-                    st.session_state.chosen_lineage = st.session_state.revealed_lineage
-                    st.session_state.stage = "show_final_teachings"
-                    st.rerun()
-                st.markdown("---")
-
+                st.markdown(f"<div class='lineage-card'>", unsafe_allow_html=True)
+                st.subheader(lineage_data['lineage'])
+                st.write("Choose a master to learn more:")
+                for i, master in enumerate(lineage_data['masters']):
+                    if st.button(f"{master.get('name', 'Unknown')}", key=f"{lineage_data['lineage']}_{i}"):
+                        st.session_state.chosen_master = master['name']
+                        st.session_state.chosen_lineage = lineage_data['lineage']
+                        st.session_state.stage = "show_final_teachings"
+                        st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+    
     if st.button("Back to Teachings"):
         st.session_state.stage = "show_anonymous_teachings"
-        keys_to_clear = ['revealed_lineage', 'masters_list', 'raw_response']
+        keys_to_clear = ['revealed_data', 'raw_response_reveal']
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
@@ -236,19 +237,14 @@ elif st.session_state.stage == "show_final_teachings":
             response = call_gemini(prompt)
             if response:
                 st.session_state.final_teachings = parse_teachings(response)
-    
     if st.session_state.get('final_teachings'):
         tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
         with tab1: st.markdown(st.session_state.final_teachings.get("concepts", "No information provided."))
         with tab2: st.markdown(st.session_state.final_teachings.get("method", "No information provided."))
         with tab3: st.markdown(st.session_state.final_teachings.get("texts", "No information provided."))
-        
-        # Placeholder for Discover More & Contemplate tabs
-        st.divider()
-        st.info("Further discovery options (Books, Places, Music, etc.) would appear here.")
     
     st.divider()
-    if st.button("Back to Masters List"):
+    if st.button("Back to Lineage Choice"):
         st.session_state.stage = "show_lineage_reveal"
         if 'final_teachings' in st.session_state: del st.session_state['final_teachings']
         st.rerun()
