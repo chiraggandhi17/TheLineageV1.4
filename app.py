@@ -32,18 +32,6 @@ def load_custom_css():
                 color: var(--primary-color);
                 border-bottom: 2px solid var(--primary-color);
             }
-            .stButton>button { 
-                border-radius: 20px; 
-                border: 1px solid var(--primary-color); 
-                color: var(--primary-color); 
-                background-color: var(--secondary-background-color);
-                transition: all 0.3s ease-in-out; 
-                padding: 5px 15px; 
-            }
-            .stButton>button:hover { 
-                color: var(--secondary-background-color); 
-                background-color: var(--primary-color); 
-            }
             .st-emotion-cache-1r6slb0, .st-emotion-cache-p5msec, .quote-container, .lineage-card { 
                 border-radius: 10px; padding: 1.5rem; background-color: var(--secondary-background-color); 
                 box-shadow: 0 4px 8px rgba(0,0,0,0.08); margin-bottom: 1.5rem;
@@ -76,8 +64,6 @@ Masters:
 2. Master Name | Time Period | Location
 When providing detailed teachings, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
 When asked for books, places, events, or music, if no relevant information exists, you must respond with ONLY the single word 'None'.
-When asked for book recommendations, respond with a markdown table with columns: Book, Description, and Link (to search on Amazon.in).
-When asked to generate a contemplative practice, present it as a series of simple, actionable steps. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it.
 """
 
 # --- HELPER FUNCTIONS ---
@@ -94,14 +80,20 @@ def parse_anonymous_teachings(text):
     if not text: return []
     return re.findall(r'^\s*\d+\.\s*(.+)$', text, re.MULTILINE)
 
+# --- FIX: More robust parsing for the lineage and master list ---
 def parse_lineage_and_masters(text):
     if not text: return "Unknown Tradition", []
+    
     lineage_match = re.search(r"Lineage:\s*(.*)", text, re.IGNORECASE)
     lineage = lineage_match.group(1).strip() if lineage_match else "Unknown Tradition"
+    
     masters_text = text.split("Masters:")[1] if "Masters:" in text else text
     masters_list = []
+    
+    # Regex to find lines starting with a number, then capture 3 parts separated by '|'
     pattern = re.compile(r"^\s*\d+\.\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$", re.MULTILINE)
     matches = pattern.findall(masters_text)
+    
     for match in matches:
         masters_list.append({
             "name": match[0].strip(),
@@ -185,7 +177,7 @@ elif st.session_state.stage == "show_lineage_reveal":
     st.info(f"The teaching you chose resonates with:")
     if 'revealed_lineage' not in st.session_state:
         with st.spinner("Unveiling the tradition..."):
-            prompt = f"The user chose the teaching: '{st.session_state.chosen_teaching}'. Which spiritual lineage and which masters are associated with this teaching? For each master, provide their name, time period, and a key associated location. Respond in the required format."
+            prompt = f"The user chose the teaching: '{st.session_state.chosen_teaching}'. Which spiritual lineage and which masters are associated with this teaching? For each master, provide their name, their time period, and a key associated location. Respond in the required format."
             response = call_gemini(prompt)
             st.session_state.raw_response_reveal = response
             if response:
@@ -211,6 +203,7 @@ elif st.session_state.stage == "show_lineage_reveal":
                     st.session_state.stage = "show_final_teachings"
                     st.rerun()
                 st.markdown("---")
+
     if st.button("Back to Teachings"):
         st.session_state.stage = "show_anonymous_teachings"
         keys_to_clear = ['revealed_lineage', 'masters_list', 'raw_response_reveal']
@@ -233,60 +226,9 @@ elif st.session_state.stage == "show_final_teachings":
         with tab1: st.markdown(st.session_state.final_teachings.get("concepts", "No information provided."))
         with tab2: st.markdown(st.session_state.final_teachings.get("method", "No information provided."))
         with tab3: st.markdown(st.session_state.final_teachings.get("texts", "No information provided."))
-        
-        st.divider()
-        
-        # --- FEATURE RESTORED: "Discover More" and "Contemplate" Tabs ---
-        st.subheader("Discover More & Contemplate")
-        disc_tabs = st.tabs(["📚 Further Reading", "📍 Places to Visit", "🗓️ Annual Events", "🙏 Practice & Music"])
-
-        with disc_tabs[0]: # Further Reading
-            if 'books' not in st.session_state:
-                with st.spinner("Finding relevant books..."):
-                    prompt = f"Suggest 2-3 books for understanding {st.session_state.chosen_master}'s core teachings on topics like {st.session_state.vritti}. Respond with a markdown table with columns: Book, Description, and Link (to search on Amazon.in)."
-                    response = call_gemini(prompt)
-                    st.session_state.books = response or "None"
-            if "None" in st.session_state.books.strip():
-                st.info("No specific book recommendations were found.")
-            else:
-                st.markdown(st.session_state.books)
-        
-        with disc_tabs[1]: # Places to Visit
-            if 'places' not in st.session_state:
-                with st.spinner("Locating significant places..."):
-                    prompt = f"Is there a significant place to visit associated with {st.session_state.chosen_master}? Respond with a markdown table with columns: Place, Description, and Location. If no significant place exists, respond with ONLY the word 'None'."
-                    response = call_gemini(prompt)
-                    st.session_state.places = response or "None"
-            if "None" in st.session_state.places.strip():
-                st.info(f"No specific places are associated with {st.session_state.chosen_master}.")
-            else:
-                st.markdown(st.session_state.places)
-
-        with disc_tabs[2]: # Annual Events
-            if 'events' not in st.session_state:
-                with st.spinner("Checking for annual events..."):
-                    prompt = f"Are there any special annual events or festivals associated with {st.session_state.chosen_master}? Respond with a markdown table with columns: Event, Description, and 'Time of Year'. If no regular events are associated, respond with ONLY the word 'None'."
-                    response = call_gemini(prompt)
-                    st.session_state.events = response or "None"
-            if "None" in st.session_state.events.strip():
-                st.info(f"No specific annual events are associated with {st.session_state.chosen_master}.")
-            else:
-                st.markdown(st.session_state.events)
-        
-        with disc_tabs[3]: # Practice & Music
-            st.info("A practice to deepen your understanding.")
-            if 'practice_text' not in st.session_state:
-                with st.spinner("Generating a relevant practice..."):
-                    prompt = f"Based on the teachings of {st.session_state.chosen_master} regarding '{st.session_state.vritti}', generate a short, guided contemplative practice. Present it as 2-4 simple, actionable steps in a numbered list. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it."
-                    response = call_gemini(prompt)
-                    st.session_state.practice_text = response or "No practice could be generated."
-            st.markdown(st.session_state.practice_text)
-            st.text_area("Your Contemplation Journal:", height=150, key="journal_entry", help="Entries are for this session only.")
-            
+    
     st.divider()
     if st.button("Back to Masters List"):
         st.session_state.stage = "show_lineage_reveal"
-        keys_to_clear = ['final_teachings', 'books', 'places', 'events', 'practice_text']
-        for key in keys_to_clear:
-            if key in st.session_state: del st.session_state[key]
+        if 'final_teachings' in st.session_state: del st.session_state['final_teachings']
         st.rerun()
