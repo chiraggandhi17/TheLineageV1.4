@@ -46,11 +46,14 @@ def load_custom_css():
     """, unsafe_allow_html=True)
 
 # --- API CONFIGURATION ---
-api_key = "AIzaSyAdcLQ_wqf3HaSqFNzLfEqp74KHw3_5OUI"
-if not api_key or "GEMINI_API_KEY" in api_key:
-    st.error("Please add your Gemini API key to the code!")
+try:
+    # This is the secure way to access the key on Streamlit Cloud
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    genai.configure(api_key=api_key)
+except KeyError:
+    # This error message will show if the secret is not set
+    st.error("API key not found. Please add it to your Streamlit secrets.")
     st.stop()
-genai.configure(api_key=api_key)
 
 # --- SYSTEM INSTRUCTION (THE "GEM" PROMPT) ---
 system_instruction = """
