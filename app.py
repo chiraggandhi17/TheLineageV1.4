@@ -298,9 +298,13 @@ elif st.session_state.stage == "show_final_teachings":
             st.text_area("Your Contemplation Journal:", height=150, key="journal_entry", help="Entries are for this session only.")
     
     st.divider()
-    if st.button("Back to Masters List"):
-        st.session_state.stage = "show_lineage_reveal"
-        keys_to_clear = ['final_teachings', 'books', 'places', 'events', 'practice_text']
-        for key in keys_to_clear:
-            if key in st.session_state: del st.session_state[key]
-        st.rerun()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Back to Masters List", use_container_width=True):
+            st.session_state.stage = "show_masters"
+            if 'final_teachings' in st.session_state: del st.session_state['final_teachings']
+            st.rerun()
+    with col2:
+        if st.button("Start Over restarting", use_container_width=True):
+            restart_app()
+            st.rerun()
