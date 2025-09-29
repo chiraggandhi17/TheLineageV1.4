@@ -70,8 +70,7 @@ def call_gemini(prompt, history=None):
     try:
         model = genai.GenerativeModel(
     model_name='gemini-1.5-pro',
-    system_instruction=system_instruction,
-    transport="rest"  # Use the REST transport
+    system_instruction=system_instruction
 )
         chat = model.start_chat(history=history or [])
         response = chat.send_message(prompt)
