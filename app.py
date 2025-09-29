@@ -90,7 +90,7 @@ When asked to generate a contemplative practice, present it as a series of simpl
 # --- HELPER FUNCTIONS ---
 def call_gemini(prompt):
     try:
-        model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+        model = genai.GenerativeModel(model_name='gemini-2.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
