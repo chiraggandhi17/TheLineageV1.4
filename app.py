@@ -66,6 +66,25 @@ except (KeyError, FileNotFoundError):
     st.error("API key not found. Please add your GOOGLE_API_KEY to your Streamlit secrets.")
     st.stop()
 
+# --- GUIDING PRINCIPLES QUIZ QUESTIONS ---
+QUESTIONS = [
+    {
+        "question": "When facing a problem, I tend to:",
+        "options": ["Analyze it logically.", "Feel my way through it intuitively.", "Seek guidance from wisdom texts.", "Take action and learn by doing."],
+        "key": "q1"
+    },
+    {
+        "question": "I feel most connected to the divine through:",
+        "options": ["Silent contemplation.", "Devotional practices.", "Intellectual understanding.", "Service to others."],
+        "key": "q2"
+    },
+    {
+        "question": "I prefer a path that is:",
+        "options": ["Well-structured with clear steps.", "Fluid and adaptable.", "Focused on a single, ultimate truth.", "Embraces multiple perspectives."],
+        "key": "q3"
+    }
+]
+
 # --- SYSTEM INSTRUCTION (THE "GEM" PROMPT) ---
 system_instruction = """
 You are the 'Spiritual Navigator', a specialized AI guide. 
@@ -137,11 +156,26 @@ st.title("🧘 Spiritual Navigator")
 load_custom_css()
 
 # --- STAGE 1: START ---
+# --- STAGE 1: START ---
 if st.session_state.stage == "start":
     st.caption("An interactive guide to ancient wisdom on modern emotions.")
     st.session_state.vritti = st.text_input("To begin, what emotion or tendency are you exploring?", key="vritti_input")
+    
+    st.write("---")
+    st.subheader("Optional: Share your Guiding Principles")
+    
+    # This loop reads from the QUESTIONS list you added above
+    answers = {}
+    for q in QUESTIONS:
+        answers[q['key']] = st.radio(q['question'], q['options'], key=q['key'], index=None)
+
     if st.button("Begin Exploration"):
         if st.session_state.vritti:
+            # Collate answers into a personality summary
+            summary = [answers[q['key']] for q in QUESTIONS if answers[q['key']]]
+            st.session_state.principles_summary = " ".join(summary)
+            
+            # Move to the next stage
             st.session_state.stage = "show_anonymous_teachings"
             st.rerun()
         else:
