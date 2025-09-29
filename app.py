@@ -65,7 +65,7 @@ When asked for teaching summaries, you must respond in the format: "1. **Lineage
 When providing detailed teachings, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
 When asked for books, places, or events, if no relevant information exists, you must respond with ONLY the single word 'None'.
 When asked for book recommendations, respond with a markdown table with columns: Book, Description, and Link (to search on Amazon.in).
-When asked to generate a practice, it must be authentic to the specific tradition. For a Bhakti master, it might be a devotional act. For a Karma Yoga teaching, an act of selfless service. For an introspective master, a meditation. Present it as simple, actionable steps. After the steps, if a relevant and soothing bhajan or chant is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it.
+When asked to generate a contemplative practice, present it as a series of simple, actionable steps. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it.
 """
 
 # --- Nature Elements Database ---
@@ -245,8 +245,11 @@ elif st.session_state.stage == "show_teachings":
         with st.spinner("Distilling the wisdom..."):
             prompt = f"What were {st.session_state.chosen_master}'s core teachings regarding {st.session_state.chosen_emotion}? Structure the response with markdown headings: '### Core Philosophical Concepts', '### The Prescribed Method or Practice', and '### Reference to Key Texts'."
             response_text = call_gemini(prompt)
+            st.session_state.raw_response = response_text
             if response_text:
                 st.session_state.teachings = parse_teachings(response_text)
+            else:
+                st.session_state.teachings = {}
     
     if st.session_state.get('teachings'):
         tab1, tab2, tab3 = st.tabs(["**Core Concepts**", "**The Method**", "**Key Texts**"])
@@ -255,8 +258,7 @@ elif st.session_state.stage == "show_teachings":
         with tab3: st.markdown(st.session_state.teachings.get("texts", "No information provided."))
         
         st.divider()
-
-        # --- FEATURE RESTORED: "Discover More" and "Contemplate" Tabs ---
+        
         st.subheader("Discover More & Contemplate")
         disc_tabs = st.tabs(["📚 Further Reading", "📍 Places to Visit", "🗓️ Annual Events", "🙏 Practice & Journal"])
 
@@ -294,10 +296,15 @@ elif st.session_state.stage == "show_teachings":
             st.info("A practice to deepen your understanding.")
             if 'practice_text' not in st.session_state:
                 with st.spinner("Generating a relevant practice..."):
-                    prompt = f"Based on the teachings of {st.session_state.chosen_master} from the {st.session_state.chosen_summary['lineage']} tradition, suggest a simple, actionable practice to help a user work with the emotion of '{st.session_state.chosen_emotion}'. The practice must be authentic to that specific tradition. For example, for a Bhakti master, it might be a devotional act. For a Karma Yoga teaching, an act of selfless service. For an introspective master, a meditation. Present the suggestion as a few clear, actionable steps. After the steps, if relevant, suggest a soothing bhajan, chant, or hymn with a YouTube search link."
+                    prompt = f"Based on the teachings of {st.session_state.chosen_master} regarding '{st.session_state.chosen_emotion}', generate a short, guided contemplative practice. Present it as 2-4 simple, actionable steps in a numbered list. After the steps, if a relevant and soothing bhajan, chant, or hymn is associated, add a section '### Suggested Listening' and a markdown link to a YouTube search for it."
                     st.session_state.practice_text = call_gemini(prompt) or "No practice could be generated."
             st.markdown(st.session_state.practice_text)
             st.text_area("Your Contemplation Journal:", height=150, key="journal_entry", help="Entries are for this session only.")
+
+    else:
+        st.warning("The AI's response could not be parsed into the teaching tabs.")
+        with st.expander("Show Raw AI Response"):
+            st.code(st.session_state.get('raw_response', "No response was received."))
     
     st.divider()
     if st.button("Back to Masters List"):
