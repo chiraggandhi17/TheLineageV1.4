@@ -264,6 +264,17 @@ elif st.session_state.stage == "show_final_teachings":
                 st.info("No specific book recommendations were found.")
             else:
                 st.markdown(st.session_state.books)
+ st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Back to Masters List", use_container_width=True):
+            st.session_state.stage = "show_masters"
+            if 'final_teachings' in st.session_state: del st.session_state['final_teachings']
+            st.rerun()
+    with col2:
+        if st.button("Start Over restarting", use_container_width=True):
+            restart_app()
+            st.rerun()
         
         with disc_tabs[1]:
             if 'places' not in st.session_state:
@@ -275,6 +286,17 @@ elif st.session_state.stage == "show_final_teachings":
                 st.info(f"No specific places are associated with {st.session_state.chosen_master}.")
             else:
                 st.markdown(st.session_state.places)
+ st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Back to Masters List", use_container_width=True):
+            st.session_state.stage = "show_masters"
+            if 'final_teachings' in st.session_state: del st.session_state['final_teachings']
+            st.rerun()
+    with col2:
+        if st.button("Start Over restarting", use_container_width=True):
+            restart_app()
+            st.rerun()
 
         with disc_tabs[2]:
             if 'events' not in st.session_state:
@@ -286,6 +308,17 @@ elif st.session_state.stage == "show_final_teachings":
                 st.info(f"No specific annual events are associated with {st.session_state.chosen_master}.")
             else:
                 st.markdown(st.session_state.events)
+ st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Back to Masters List", use_container_width=True):
+            st.session_state.stage = "show_masters"
+            if 'final_teachings' in st.session_state: del st.session_state['final_teachings']
+            st.rerun()
+    with col2:
+        if st.button("Start Over restarting", use_container_width=True):
+            restart_app()
+            st.rerun()
         
         with disc_tabs[3]:
             st.info("A practice to deepen your understanding.")
