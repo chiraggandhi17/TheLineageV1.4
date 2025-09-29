@@ -56,12 +56,12 @@ except (KeyError, FileNotFoundError):
 # --- SYSTEM INSTRUCTION (THE "GEM" PROMPT) ---
 system_instruction = """
 You are the 'Spiritual Navigator', a specialized AI guide. 
-When asked for anonymous teachings, provide a numbered list of 5 brief, one-or-two sentence summaries. Do NOT name the master or tradition.
-When asked to identify lineages for a teaching, first provide a one-sentence summary of the types of lineages. Then, provide a numbered list of ONLY the lineage names. Example:
-These teachings are found in mystical traditions focused on devotional love.
-1. Sufism
-2. Bhakti Yoga
-When asked for details of a SINGLE lineage, respond with a brief description of that lineage, then a sub-section "Masters from this lineage:", followed by a numbered list of masters. For each master, provide their name, time period, and a key associated location.
+When asked for anonymous teachings, provide a numbered list of 5 brief, one-or-two sentence summaries of spiritual teachings. Do NOT name the master, school, or tradition.
+When asked to identify a teaching, you must identify the SINGLE MOST PROMINENT spiritual lineage associated with it. Then, provide a numbered list of masters from that lineage. For each master, provide their name, their time period, and a key associated location. The format MUST be:
+Lineage: Name of the Lineage
+Masters:
+1. Master Name | Time Period | Location
+2. Master Name | Time Period | Location
 When providing detailed teachings, structure it with clear markdown headings: "### Core Philosophical Concepts", "### The Prescribed Method or Practice", and "### Reference to Key Texts".
 """
 
@@ -79,20 +79,17 @@ def parse_anonymous_teachings(text):
     if not text: return []
     return re.findall(r'^\s*\d+\.\s*(.+)$', text, re.MULTILINE)
 
-# --- MODIFIED: Parsing functions for the new 3-step flow ---
-def parse_lineage_summary_and_list(text):
-    if not text: return "Could not determine lineages.", []
-    summary = text.split('\n')[0] # The first line is the summary
-    lineages = re.findall(r'^\s*\d+\.\s*(.+)$', text, re.MULTILINE)
-    return summary, lineages
-
-def parse_lineage_details(text):
-    if not text: return "No description found.", []
-    description = text.split("Masters from this lineage:")[0].strip()
-    masters_text = text.split("Masters from this lineage:")[1] if "Masters from this lineage:" in text else ""
+# --- FIX: More robust parsing for the lineage and master list ---
+def parse_lineage_and_masters(text):
+    if not text: return "Unknown Tradition", []
+    
+    lineage_match = re.search(r"Lineage:\s*(.*)", text, re.IGNORECASE)
+    lineage = lineage_match.group(1).strip() if lineage_match else "Unknown Tradition"
+    
+    masters_text = text.split("Masters:")[1] if "Masters:" in text else text
     masters_list = []
     
-    # Updated regex for flexibility
+    # Regex to find lines starting with a number, then capture 3 parts separated by '|'
     pattern = re.compile(r"^\s*\d+\.\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$", re.MULTILINE)
     matches = pattern.findall(masters_text)
     
@@ -102,7 +99,7 @@ def parse_lineage_details(text):
             "period": match[1].strip(),
             "location": match[2].strip()
         })
-    return description, masters_list
+    return lineage, masters_list
 
 def parse_teachings(text):
     if not text: return {}
@@ -136,6 +133,7 @@ if st.session_state.stage == "start":
     QUESTIONS = [
         {"question": "When facing a problem, I tend to:", "options": ["Analyze it logically.", "Feel my way through it intuitively.", "Seek guidance from wisdom texts.", "Take action and learn by doing."], "key": "q1"},
         {"question": "I feel most connected to the divine through:", "options": ["Silent contemplation.", "Devotional practices.", "Intellectual understanding.", "Service to others."], "key": "q2"},
+        {"question": "I prefer a path that is:", "options": ["Well-structured with clear steps.", "Fluid and adaptable.", "Focused on a single, ultimate truth.", "Embraces multiple perspectives."], "key": "q3"}
     ]
     answers = {}
     for q in QUESTIONS:
@@ -153,82 +151,61 @@ elif st.session_state.stage == "show_anonymous_teachings":
     st.subheader(f"Insights on: {st.session_state.vritti.capitalize()}")
     if 'teachings' not in st.session_state:
         with st.spinner("Finding teachings that resonate with you..."):
-            prompt = f"Based on a user exploring '{st.session_state.vritti}' and whose guiding principles are '{st.session_state.principles_summary}', provide 5 brief, anonymous teaching summaries from different spiritual traditions."
+            prompt = f"Based on a user who is exploring '{st.session_state.vritti}' and whose guiding principles are '{st.session_state.principles_summary}', provide 5 brief, anonymous teaching summaries from different spiritual traditions. Do NOT name the tradition or the master."
             response = call_gemini(prompt)
+            st.session_state.raw_response = response
             if response:
                 st.session_state.teachings = parse_anonymous_teachings(response)
     if not st.session_state.get('teachings'):
         st.warning("Could not find specific teachings. Please try another emotion.")
+        with st.expander("Show Raw AI Response (for debugging)"):
+            st.code(st.session_state.get('raw_response', "No response from AI."))
     else:
         st.write("Choose the teaching that resonates with you most:")
         for i, teaching in enumerate(st.session_state.teachings):
             if st.button(teaching, key=f"teaching_{i}", use_container_width=True):
                 st.session_state.chosen_teaching = teaching
-                st.session_state.stage = "show_lineage_list" # New stage
+                st.session_state.stage = "show_lineage_reveal"
                 st.rerun()
     st.divider()
     if st.button("Start Over"):
         restart_app()
         st.rerun()
 
-# --- NEW STAGE: Show the list of relevant lineages ---
-elif st.session_state.stage == "show_lineage_list":
-    st.info(f"The teaching you chose resonates with the following traditions:")
-    if 'lineage_summary' not in st.session_state:
-        with st.spinner("Identifying the traditions..."):
-            prompt = f"The user chose the teaching: '{st.session_state.chosen_teaching}'. First, provide a one-sentence summary of what these lineages have in common. Then, provide a numbered list of ONLY the names of the associated spiritual lineages."
+elif st.session_state.stage == "show_lineage_reveal":
+    st.info(f"The teaching you chose resonates with:")
+    if 'revealed_lineage' not in st.session_state:
+        with st.spinner("Unveiling the tradition..."):
+            prompt = f"The user chose the teaching: '{st.session_state.chosen_teaching}'. Which spiritual lineage and which masters are associated with this teaching? For each master, provide their name, their time period, and a key associated location. Respond in the required format."
             response = call_gemini(prompt)
+            st.session_state.raw_response_reveal = response
             if response:
-                summary, lineages = parse_lineage_summary_and_list(response)
-                st.session_state.lineage_summary = summary
-                st.session_state.lineage_list = lineages
-    
-    st.write(st.session_state.get('lineage_summary', ''))
-    st.write("Choose a lineage to explore further:")
-    for i, lineage in enumerate(st.session_state.get('lineage_list', [])):
-        if st.button(lineage, key=f"lineage_list_{i}", use_container_width=True):
-            st.session_state.chosen_lineage = lineage
-            st.session_state.stage = "show_lineage_details" # New stage
-            st.rerun()
-    
-    st.divider()
-    if st.button("Back to Teachings"):
-        st.session_state.stage = "show_anonymous_teachings"
-        keys_to_clear = ['lineage_summary', 'lineage_list']
-        for key in keys_to_clear:
-            if key in st.session_state: del st.session_state[key]
-        st.rerun()
-
-# --- NEW STAGE: Show details and masters for the chosen lineage ---
-elif st.session_state.stage == "show_lineage_details":
-    st.header(st.session_state.chosen_lineage)
-    if 'lineage_description' not in st.session_state:
-        with st.spinner(f"Loading details for {st.session_state.chosen_lineage}..."):
-            prompt = f"For the lineage '{st.session_state.chosen_lineage}', provide a brief description, then list its key masters who spoke on '{st.session_state.vritti}'. Respond in the required format."
-            response = call_gemini(prompt)
-            if response:
-                description, masters = parse_lineage_details(response)
-                st.session_state.lineage_description = description
+                lineage, masters = parse_lineage_and_masters(response)
+                st.session_state.revealed_lineage = lineage
                 st.session_state.masters_list = masters
-    
-    st.markdown(st.session_state.get('lineage_description', ''))
-    st.subheader("Masters from this lineage:")
+
+    st.header(st.session_state.get('revealed_lineage', 'Unknown Lineage'))
     
     if not st.session_state.get('masters_list'):
-        st.warning("Could not parse the list of masters.")
+        st.warning("Could not parse the list of masters from the AI's response.")
+        with st.expander("Show Raw AI Response (for debugging)"):
+            st.code(st.session_state.get('raw_response_reveal', "No response from AI."))
     else:
+        st.write("Choose a master to learn more:")
         for i, master in enumerate(st.session_state.get('masters_list', [])):
-            st.markdown(f"**{master['name']}**")
-            st.caption(f"{master['period']} | {master['location']}")
-            if st.button("Explore Teachings", key=f"master_{i}"):
-                st.session_state.chosen_master = master['name']
-                st.session_state.stage = "show_final_teachings"
-                st.rerun()
-            st.markdown("---")
-            
-    if st.button("Back to Lineage List"):
-        st.session_state.stage = "show_lineage_list"
-        keys_to_clear = ['lineage_description', 'masters_list', 'chosen_lineage']
+            with st.container():
+                st.markdown(f"**{master['name']}**")
+                st.caption(f"{master.get('period', 'Unknown')} | {master.get('location', 'Unknown')}")
+                if st.button("Explore Teachings", key=f"master_{i}"):
+                    st.session_state.chosen_master = master['name']
+                    st.session_state.chosen_lineage = st.session_state.revealed_lineage
+                    st.session_state.stage = "show_final_teachings"
+                    st.rerun()
+                st.markdown("---")
+
+    if st.button("Back to Teachings"):
+        st.session_state.stage = "show_anonymous_teachings"
+        keys_to_clear = ['revealed_lineage', 'masters_list', 'raw_response_reveal']
         for key in keys_to_clear:
             if key in st.session_state: del st.session_state[key]
         st.rerun()
@@ -251,6 +228,6 @@ elif st.session_state.stage == "show_final_teachings":
     
     st.divider()
     if st.button("Back to Masters List"):
-        st.session_state.stage = "show_lineage_details"
+        st.session_state.stage = "show_lineage_reveal"
         if 'final_teachings' in st.session_state: del st.session_state['final_teachings']
         st.rerun()
