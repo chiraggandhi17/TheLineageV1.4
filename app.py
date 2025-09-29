@@ -87,7 +87,7 @@ When asked to generate a contemplative practice, present it as a series of simpl
 # --- HELPER FUNCTIONS ---
 def call_gemini(prompt):
     try:
-        model = genai.GenerativeModel(model_name='gemini-2.5-pro')
+        model = genai.GenerativeModel(model_name='gemini-2.5-Pro')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -141,44 +141,22 @@ load_custom_css()
 
 if st.session_state.stage == "start":
     st.caption("An interactive guide to ancient wisdom on modern emotions.")
+    st.session_state.vritti = st.text_input("To begin, what emotion or tendency are you exploring?", key="vritti_input")
     
-    with st.expander("**Option 1: Start with an Emotion**", expanded=True):
-        st.session_state.vritti_input = st.text_input("Enter a single emotion or tendency (e.g., Anger, Fear):", key="emotion_input")
-
-    with st.expander("**Option 2: Ask a Deeper Question**"):
-        st.session_state.question_input = st.text_area("Describe the situation or question you are exploring:", key="question_input", height=100)
-    
-    with st.expander("**Optional: Share your Guiding Principles**"):
-        answers = {}
-        for q in QUESTIONS:
-            answers[q['key']] = st.radio(q['question'], q['options'], key=q['key'], index=None)
+    st.write("---")
+    st.subheader("Optional: Share your Guiding Principles")
+    answers = {}
+    for q in QUESTIONS:
+        answers[q['key']] = st.radio(q['question'], q['options'], key=q['key'], index=None)
 
     if st.button("Begin Exploration"):
-        user_input = st.session_state.vritti_input or st.session_state.question_input
-        if user_input:
-            with st.spinner("Understanding your query..."):
-                # Collate quiz answers
-                summary = [answers[q['key']] for q in QUESTIONS if answers[q['key']]]
-                principles_summary = " ".join(summary)
-                st.session_state.principles_summary = principles_summary
-
-                # Decide if we need to distill the vritti from a question
-                if st.session_state.question_input:
-                    understanding_prompt = f"A user has submitted the following query: '{st.session_state.question_input}'. Analyze this to identify the single core emotion, psychological block, or 'vritti' they are facing. Respond with ONLY the name of that core issue (e.g., 'Anger', 'Fear of Failure')."
-                    core_vritti = call_gemini(understanding_prompt)
-                else: # Use the direct emotion input
-                    core_vritti = st.session_state.vritti_input
-
-                if core_vritti:
-                    restart_app() # Full reset
-                    st.session_state.principles_summary = principles_summary
-                    st.session_state.vritti = core_vritti.strip()
-                    st.session_state.stage = "show_anonymous_teachings"
-                    st.rerun()
-                else:
-                    st.error("Could not understand the core issue. Please try rephrasing your question.")
+        if st.session_state.vritti:
+            summary = [answers[q['key']] for q in QUESTIONS if answers[q['key']]]
+            st.session_state.principles_summary = " ".join(summary)
+            st.session_state.stage = "show_anonymous_teachings"
+            st.rerun()
         else:
-            st.warning("Please enter an emotion or ask a question to begin.")
+            st.warning("Please enter an emotion or tendency to begin.")
 
 elif st.session_state.stage == "show_anonymous_teachings":
     st.subheader(f"Insights on: {st.session_state.vritti.capitalize()}")
