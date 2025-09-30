@@ -136,11 +136,12 @@ def restart_app():
     st.session_state.stage = "start"
 
 # --- MAIN APP UI ---
-st.title("🧘 Spiritual Navigator")
+st.image("logo.png", use_container_width=True)
+st.markdown("<h1 style='text-align: center;'>🧘 Spiritual Navigator</h1>", unsafe_allow_html=True)
 load_custom_css()
 
 if st.session_state.stage == "start":
-    st.caption("An interactive guide to ancient wisdom on modern emotions.")
+     st.markdown("<marquee>An interactive guide to ancient wisdom on modern emotions.</marquee>", unsafe_allow_html=True)
     st.session_state.vritti = st.text_input("To begin, what emotion or tendency are you exploring?", key="vritti_input")
     
     st.write("---")
