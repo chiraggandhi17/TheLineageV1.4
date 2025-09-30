@@ -141,9 +141,7 @@ st.markdown("<h1 style='text-align: center;'>🧘 Spiritual Navigator</h1>", uns
 load_custom_css()
 
 if st.session_state.stage == "start":
-    
 	st.session_state.vritti = st.text_input("To begin, what emotion or tendency are you exploring?", key="vritti_input")
-    
     st.write("---")
     st.subheader("Optional: Share your Guiding Principles")
     answers = {}
