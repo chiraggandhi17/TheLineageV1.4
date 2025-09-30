@@ -142,7 +142,7 @@ load_custom_css()
 
 if st.session_state.stage == "start":
      st.markdown("<marquee>An interactive guide to ancient wisdom on modern emotions.</marquee>", unsafe_allow_html=True)
-    st.session_state.vritti = st.text_input("To begin, what emotion or tendency are you exploring?", key="vritti_input")
+	st.session_state.vritti = st.text_input("To begin, what emotion or tendency are you exploring?", key="vritti_input")
     
     st.write("---")
     st.subheader("Optional: Share your Guiding Principles")
